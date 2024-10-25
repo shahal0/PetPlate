@@ -15,7 +15,7 @@ func ConnectToDB() {
 	var err error
 
 	// Connection string for PostgreSQL
-	dsn := "host=localhost user=postgres password=1234 dbname=petplate port=5432 sslmode=disable TimeZone=Asia/Shanghai"
+	dsn := "host=localhost user=postgres password=1 dbname=petplate port=5432 sslmode=disable TimeZone=Asia/Shanghai"
 
 	// Opening the PostgreSQL database connection
 	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
@@ -34,6 +34,14 @@ func AutoMigrate() {
 		&models.VerificationTable{},
 		&models.GoogleResponse{},
 		&models.Admin{},
+		&models.UserResponse{},
+		&models.Category{},
+		&models.CreateCategoryRequest{},
+		&models.Product{},
+		&models.AddProductRequest{},
+		&models.Service{},
+		&models.ServiceRequest{},
+
 	)
 	if err != nil {
 		log.Fatal("Failed to automigrate models:", err)

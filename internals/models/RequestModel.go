@@ -21,3 +21,25 @@ type AdminLoginRequest struct {
 	Email string `json:"email" validate:"required,email"`
 	Password string 
 }
+type CreateCategoryRequest struct {
+    Name        string `json:"name" binding:"required"`
+    Description string `json:"description"`
+}
+type AddProductRequest struct{
+	ID uint
+	Name  			string `validate:"required" json:"name"`
+	Description     string  `gorm:"column:description" validate:"required" json:"description"`
+	CategoryID      uint    `gorm:"foreignKey:CategoryID" validate:"required" json:"category_id"`
+	Price           float64 `validate:"required,number" json:"price"`
+	MaxStock        uint    `validate:"required,number" json:"max_stock"`
+	RatingSum       float64 `gorm:"column:rating_sum" json:"rating_sum"`
+	ImageURL        string  `gorm:"column:image_url" validate:"required" json:"image_url"`
+
+}
+type ServiceRequest struct{
+	ID uint
+	Name 	string `validate:"required" json:"name"`
+	Description string	`gorm:"column:description" validate:"required" json:"description"`
+	Price   float64	`validate:"required,number" json:"price"`
+	ImageURL string  `gorm:"column:image_url" validate:"required" json:"image_url"`
+}

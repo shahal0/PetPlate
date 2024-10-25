@@ -43,7 +43,7 @@ func SignupUser(c *gin.Context) {
     var signupRequest models.SignupRequest
     if err := c.BindJSON(&signupRequest); err != nil {
         c.JSON(http.StatusBadRequest, gin.H{
-            "status":  false,
+            "status":  "failed",
             "message": "failed to process the incoming request" + err.Error(),
         })
         return
@@ -111,7 +111,7 @@ func SignupUser(c *gin.Context) {
         "message": "failed to generate JWT token: " + err.Error(),
     })
     return
-}
+	}
 
 
     // Set the JWT token in the cookie
@@ -164,6 +164,7 @@ func EmailLogin(c *gin.Context) {
 		})
 		return
 	}
+	
 	var user models.User
 	tx := database.DB.Where("email =? AND deleted_at IS NULL", LoginRequest.Email).First(&user)
 	if tx.Error != nil {
@@ -180,6 +181,18 @@ func EmailLogin(c *gin.Context) {
 		})
 		return
 	}
+	tokenString, err := utils.GenerateJWT(user.Email)
+	if err != nil {
+    c.JSON(http.StatusInternalServerError, gin.H{
+        "status":  false,
+        "message": "failed to generate JWT token: " + err.Error(),
+    })
+    return
+	}
+
+
+    // Set the JWT token in the cookie
+    c.SetCookie("Authorization", tokenString, 3600*24, "/", "localhost", false, true)
 	c.JSON(http.StatusOK, gin.H{
 		"status":  true,
 		"message": "Email login successful.",
@@ -191,6 +204,7 @@ func EmailLogin(c *gin.Context) {
 				"picture":      user.Picture,
 				"login_method": user.LoginMethod,
 				"block_status": user.Blocked,
+				"token":tokenString,
 			},
 		},
 	})
@@ -362,7 +376,7 @@ func ResendOtp(c *gin.Context) {
 	entityEmail := c.Query("email")
 	if entityEmail == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  false,
+			"status":  "failed",
 			"message": "Email is required",
 		})
 		return
@@ -375,7 +389,7 @@ func ResendOtp(c *gin.Context) {
 	// Check if the record exists
 	if errors.Is(tx.Error, gorm.ErrRecordNotFound) {
 		c.JSON(http.StatusNotFound, gin.H{
-			"status":  false,
+			"status":  "failed",
 			"message": "Email not found",
 		})
 		return
@@ -387,7 +401,7 @@ func ResendOtp(c *gin.Context) {
 		// If OTP is still valid, prevent resend and inform the user
 		timeLeft := verification.OTPExpiry - currentTime
 		c.JSON(http.StatusTooManyRequests, gin.H{
-			"status":  false,
+			"status":  "failed",
 			"message": fmt.Sprintf("OTP is still valid. Please wait %v seconds before requesting another OTP.", timeLeft),
 		})
 		return
@@ -396,7 +410,7 @@ func ResendOtp(c *gin.Context) {
 	// OTP has expired, generate and send a new OTP using the existing SendOtp function
 	if err := SendOtp(c, entityEmail, verification.OTPExpiry); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  false,
+			"status":  "failed",
 			"message": "Failed to send OTP: " + err.Error(),
 		})
 		return
@@ -404,7 +418,7 @@ func ResendOtp(c *gin.Context) {
 
 	// Respond with success message
 	c.JSON(http.StatusOK, gin.H{
-		"status":  true,
+		"status":  "success",
 		"message": "A new OTP has been sent to your email.",
 	})
 }
@@ -423,7 +437,7 @@ func HandleGoogleCallback(c *gin.Context) {
     // Check if code exists in the query parameters
     if code == "" {
         c.JSON(http.StatusBadRequest, gin.H{
-            "status":  false,
+            "status":  "failed",
             "message": "missing code parameter",
         })
         return
@@ -433,7 +447,7 @@ func HandleGoogleCallback(c *gin.Context) {
     token, err := googleOauthConfig.Exchange(context.Background(), code)
     if err != nil {
         c.JSON(http.StatusBadRequest, gin.H{
-            "status":  false,
+            "status":  "failed",
             "message": "failed to exchange token",
         })
         return
@@ -443,7 +457,7 @@ func HandleGoogleCallback(c *gin.Context) {
     response, err := http.Get("https://www.googleapis.com/oauth2/v2/userinfo?access_token=" + token.AccessToken)
     if err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{
-            "status":  false,
+            "status": "failed",
             "message": "failed to get user information",
         })
         return
@@ -454,7 +468,7 @@ func HandleGoogleCallback(c *gin.Context) {
     content, err := io.ReadAll(response.Body)
     if err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{
-            "status":  false,
+            "status":  "failed",
             "message": "failed to read user information",
         })
         return
@@ -465,7 +479,7 @@ func HandleGoogleCallback(c *gin.Context) {
     err = json.Unmarshal(content, &googleUser)
     if err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{
-            "status":  false,
+            "status":  "failed",
             "message": "failed to parse user information",
         })
         return
@@ -492,7 +506,7 @@ func HandleGoogleCallback(c *gin.Context) {
             // User not found, create a new user
             if err := database.DB.Create(&newUser).Error; err != nil {
                 c.JSON(http.StatusInternalServerError, gin.H{
-                    "status":  false,
+                    "status":  "failed",
                     "message": "failed to create user through Google SSO",
                 })
                 return
@@ -500,18 +514,31 @@ func HandleGoogleCallback(c *gin.Context) {
         } else {
             // Failed to fetch user due to another error
             c.JSON(http.StatusInternalServerError, gin.H{
-                "status":  false,
+                "status":  "failed",
                 "message": "failed to fetch user information",
             })
             return
         }
     }
+	tokenString, err := utils.GenerateJWT(newUser.Email)
+	if err != nil {
+    c.JSON(http.StatusInternalServerError, gin.H{
+        "status":  false,
+        "message": "failed to generate JWT token: " + err.Error(),
+    })
+    return
+	}
+
+
+    // Set the JWT token in the cookie
+    c.SetCookie("Authorization", tokenString, 3600*24, "/", "localhost", false, true)
 
     // If no error occurred, respond with success
     c.JSON(http.StatusOK, gin.H{
-        "status":  true,
+        "status":  "success",
         "message": "user authenticated successfully",
         "user":    newUser,
+		"token":tokenString,
     })
 }
 
