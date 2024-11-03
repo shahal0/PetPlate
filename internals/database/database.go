@@ -32,15 +32,15 @@ func AutoMigrate() {
 	err := DB.AutoMigrate(
 		&models.User{},
 		&models.VerificationTable{},
-		&models.GoogleResponse{},
 		&models.Admin{},
-		&models.UserResponse{},
 		&models.Category{},
-		&models.CreateCategoryRequest{},
 		&models.Product{},
-		&models.AddProductRequest{},
 		&models.Service{},
-		&models.ServiceRequest{},
+		&models.Address{},
+		&models.Cart{},
+		&models.Order{},
+		&models.OrderItem{},
+		&models.Rating{},
 
 	)
 	if err != nil {

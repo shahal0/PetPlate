@@ -1,23 +1,32 @@
 package controllers
 
 import (
-    
 	"net/http"
 	"petplate/internals/database"
 	"petplate/internals/models"
-	"petplate/utils"
+	//"petplate/utils"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-
+	"github.com/go-playground/validator/v10"
 ) 
 
 func CreateCategory(c *gin.Context) {
-	_, err := utils.GetJWTClaim(c) // Assume this is the admin email
-	if err != nil {
+    email, exist := c.Get("email")
+	if !exist {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"status":  "failed",
-			"message": "unauthorized or invalid token",
+			"message": "Unauthorized or invalid token",
+		})
+		return
+	}
+
+	// Type assertion to string, not uint
+	_, ok := email.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "failed",
+			"message": "Failed to retrieve email from token",
 		})
 		return
 	}
@@ -30,6 +39,14 @@ func CreateCategory(c *gin.Context) {
         })
         return
     }
+    validate := validator.New()
+	if err := validate.Struct(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "failed",
+			"message": err.Error(),
+		})
+		return
+	}
 
     // Map the request to the Category model
     category := models.Category{
@@ -70,14 +87,24 @@ func GetCategories(c *gin.Context){
 }
 func CategoryEdit(c *gin.Context) {
     // Check authorization (admin email assumed from JWT claim)
-    _, err := utils.GetJWTClaim(c) 
-    if err != nil {
-        c.JSON(http.StatusUnauthorized, gin.H{
-            "status":  "failed",
-            "message": "unauthorized or invalid token",
-        })
-        return
-    }
+    email, exist := c.Get("email")
+	if !exist {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"status":  "failed",
+			"message": "Unauthorized or invalid token",
+		})
+		return
+	}
+
+	// Type assertion to string, not uint
+	_, ok := email.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "failed",
+			"message": "Failed to retrieve email from token",
+		})
+		return
+	}
 
     // Get category ID from the query parameter
     categoryID := c.Query("id")
@@ -88,6 +115,7 @@ func CategoryEdit(c *gin.Context) {
 		})
 		return
 	}
+    
     var category models.Category
     // Find the category by ID
     if err := database.DB.Where("id = ?", categoryID).First(&category).Error; err != nil {
@@ -108,6 +136,14 @@ func CategoryEdit(c *gin.Context) {
         })
         return
     }
+    validate := validator.New()
+	if err := validate.Struct(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "failed",
+			"message": err.Error(),
+		})
+		return
+	}
 
     // Save the updated category
     if err := database.DB.Model(&category).Updates(req).Error; err != nil {
@@ -127,14 +163,24 @@ func CategoryEdit(c *gin.Context) {
 }
 func CategoryDelete(c *gin.Context) {
     // Extract and verify JWT claim
-    _, err := utils.GetJWTClaim(c)
-    if err != nil {
-        c.JSON(http.StatusUnauthorized, gin.H{
-            "status":  "failed",
-            "message": "Unauthorized or invalid token",
-        })
-        return
-    }
+    email, exist := c.Get("email")
+	if !exist {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"status":  "failed",
+			"message": "Unauthorized or invalid token",
+		})
+		return
+	}
+
+	// Type assertion to string
+	_, ok := email.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "failed",
+			"message": "Failed to retrieve email from token",
+		})
+		return
+	}
 
     // Get category ID from query params
     categoryID := c.Query("id")
@@ -176,18 +222,6 @@ func CategoryDelete(c *gin.Context) {
         return
     }
 
-    // Update all products associated with this category's ID to set CategoryID to NULL
-    if err := database.DB.Model(&models.Product{}).
-        Where("category_id = ?", categoryId).
-        Update("category_id", nil).Error; err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{
-            "status":  "failed",
-            "message": "Failed to update products in the category",
-        })
-        return
-    }
-
-    // Success response after category deletion and product update
     c.JSON(http.StatusOK, gin.H{
         "status":  "success",
         "message": "Category deleted successfully, products updated to NULL",

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+
 	//"log"
 	"math/rand"
 	"net/http"
@@ -21,6 +22,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 
@@ -44,7 +46,7 @@ func SignupUser(c *gin.Context) {
     if err := c.BindJSON(&signupRequest); err != nil {
         c.JSON(http.StatusBadRequest, gin.H{
             "status":  "failed",
-            "message": "failed to process the incoming request" + err.Error(),
+            "message": "failed to process the incoming request: " + err.Error(),
         })
         return
     }
@@ -61,23 +63,33 @@ func SignupUser(c *gin.Context) {
     if signupRequest.Password != signupRequest.ConfirmPassword {
         c.JSON(http.StatusBadRequest, gin.H{
             "status":  false,
-            "message": "passwords doesn't match",
+            "message": "passwords don't match",
         })
         return
     }
 
-    // Password validation (you can add your password validation logic here)
-
-    User := models.User{
-        Name:        signupRequest.Name,
-        Email:       signupRequest.Email,
-        PhoneNumber: fmt.Sprint(signupRequest.PhoneNumber),
-        Password:    signupRequest.Password,
-        LoginMethod: models.EmailLoginMethod,
-        Blocked:     false,
+    // Hash the password
+    hashedPassword, err := bcrypt.GenerateFromPassword([]byte(signupRequest.Password), bcrypt.DefaultCost)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{
+            "status":  false,
+            "message": "failed to hash password",
+        })
+        return
     }
 
-    tx := database.DB.Where("email =? AND deleted_at IS NULL", signupRequest.Email).First(&User)
+    User := models.User{
+        Name:           signupRequest.Name,
+        Email:          signupRequest.Email,
+        PhoneNumber:    fmt.Sprint(signupRequest.PhoneNumber),
+        Password:       signupRequest.Password,          // Store the plain password (not recommended)
+        HashedPassword: string(hashedPassword),          // Store the hashed password
+        LoginMethod:    models.EmailLoginMethod,
+        Blocked:        false,
+    }
+
+    // Check if the user already exists
+    tx := database.DB.Where("email = ? AND deleted_at IS NULL", signupRequest.Email).First(&User)
     if tx.Error != nil && tx.Error != gorm.ErrRecordNotFound {
         c.JSON(http.StatusInternalServerError, gin.H{
             "status":  false,
@@ -104,15 +116,14 @@ func SignupUser(c *gin.Context) {
     }
 
     // Generate JWT Token
-    tokenString, err := utils.GenerateJWT(User.Email)
-	if err != nil {
-    c.JSON(http.StatusInternalServerError, gin.H{
-        "status":  false,
-        "message": "failed to generate JWT token: " + err.Error(),
-    })
-    return
-	}
-
+    tokenString, err := utils.GenerateJWT(User.Email, "user")
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{
+            "status":  false,
+            "message": "failed to generate JWT token: " + err.Error(),
+        })
+        return
+    }
 
     // Set the JWT token in the cookie
     c.SetCookie("Authorization", tokenString, 3600*24, "/", "localhost", false, true)
@@ -128,7 +139,7 @@ func SignupUser(c *gin.Context) {
     // Return success response
     c.JSON(http.StatusOK, gin.H{
         "status":  true,
-        "message": "Email login successful, please login to complete your email verification",
+        "message": "Email signup successful, please login to complete your email verification",
         "data": gin.H{
             "user": gin.H{
                 "name":         User.Name,
@@ -146,68 +157,82 @@ func GenerateJWT(s string) {
 	panic("unimplemented")
 }
 func EmailLogin(c *gin.Context) {
-	//get the json from the request
-	var LoginRequest models.EmailLoginRequest
-	if err := c.BindJSON(&LoginRequest); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  false,
-			"message": "failed to process the incoming request",
-		})
-		return
-	}
-	validate := validator.New() // Initialize the validator
-	if err := validate.Struct(&LoginRequest); err != nil {
-		// Validation failed, return error message
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  "failed",
-			"message": err.Error(),
-		})
-		return
-	}
-	
-	var user models.User
-	tx := database.DB.Where("email =? AND deleted_at IS NULL", LoginRequest.Email).First(&user)
-	if tx.Error != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  false,
-			"message": "invalid email or password",
-		})
-		return
-	}
-	if user.LoginMethod != models.EmailLoginMethod {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  false,
-			"message": "email uses another method for logging in, use google sso",
-		})
-		return
-	}
-	tokenString, err := utils.GenerateJWT(user.Email)
-	if err != nil {
-    c.JSON(http.StatusInternalServerError, gin.H{
-        "status":  false,
-        "message": "failed to generate JWT token: " + err.Error(),
-    })
-    return
-	}
+    // Get the JSON from the request
+    var LoginRequest models.EmailLoginRequest
+    if err := c.BindJSON(&LoginRequest); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{
+            "status":  false,
+            "message": "failed to process the incoming request",
+        })
+        return
+    }
 
+    validate := validator.New() // Initialize the validator
+    if err := validate.Struct(&LoginRequest); err != nil {
+        // Validation failed, return error message
+        c.JSON(http.StatusBadRequest, gin.H{
+            "status":  "failed",
+            "message": err.Error(),
+        })
+        return
+    }
+
+    var user models.User
+    tx := database.DB.Where("email = ? AND deleted_at IS NULL", LoginRequest.Email).First(&user)
+    if tx.Error != nil {
+        c.JSON(http.StatusBadRequest, gin.H{
+            "status":  false,
+            "message": "invalid email or password",
+        })
+        return
+    }
+
+    if user.LoginMethod != models.EmailLoginMethod {
+        c.JSON(http.StatusBadRequest, gin.H{
+            "status":  false,
+            "message": "email uses another method for logging in, use Google SSO",
+        })
+        return
+    }
+
+    // Check if the provided password matches the stored hashed password
+    err := bcrypt.CompareHashAndPassword([]byte(user.HashedPassword), []byte(LoginRequest.Password))
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{
+            "status":  false,
+            "message": "invalid email or password",
+        })
+        return
+    }
+
+    // Generate JWT Token
+    tokenString, err := utils.GenerateJWT(user.Email, "user")
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{
+            "status":  false,
+            "message": "failed to generate JWT token: " + err.Error(),
+        })
+        return
+    }
 
     // Set the JWT token in the cookie
     c.SetCookie("Authorization", tokenString, 3600*24, "/", "localhost", false, true)
-	c.JSON(http.StatusOK, gin.H{
-		"status":  true,
-		"message": "Email login successful.",
-		"data": gin.H{
-			"user": gin.H{
-				"name":         user.Name,
-				"email":        user.Email,
-				"phone_number": user.PhoneNumber,
-				"picture":      user.Picture,
-				"login_method": user.LoginMethod,
-				"block_status": user.Blocked,
-				"token":tokenString,
-			},
-		},
-	})
+    c.JSON(http.StatusOK, gin.H{
+        "status":  true,
+        "message": "Email login successful.",
+        "data": gin.H{
+            "user": gin.H{
+                "id":          user.ID,
+                "name":        user.Name,
+                "email":       user.Email,
+                "phone_number": user.PhoneNumber,
+                "picture":     user.Picture,
+                "login_method": user.LoginMethod,
+                "block_status": user.Blocked,
+                "token":       tokenString,
+            },
+        },
+    })
 }
 func SendOtp(c *gin.Context, to string, otpexpiry uint64) error {
 	// Random OTP generation
@@ -351,25 +376,14 @@ func VerifyEmail(c *gin.Context) {
 		return
 	}
 
-	// Generate a JWT token for the user
-	tokenString, err := utils.GenerateJWT(entityEmail)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  false,
-			"message": "Failed to generate JWT token",
-		})
-		return
-	}
-
 	// Return the success message and JWT token
 	c.JSON(http.StatusOK, gin.H{
 		"status":  true,
 		"message": "Email verification successful",
-		"data": gin.H{
-			"token": tokenString, // Send the JWT token as part of the response
-		},
-	})
-}
+		
+		})
+
+} 
 
 func ResendOtp(c *gin.Context) {
 	// Get the email from the request
@@ -520,7 +534,7 @@ func HandleGoogleCallback(c *gin.Context) {
             return
         }
     }
-	tokenString, err := utils.GenerateJWT(newUser.Email)
+	tokenString, err := utils.GenerateJWT(newUser.Email,"user")
 	if err != nil {
     c.JSON(http.StatusInternalServerError, gin.H{
         "status":  false,

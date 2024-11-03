@@ -4,20 +4,30 @@ import (
 	"net/http"
 	"petplate/internals/database"
 	"petplate/internals/models"
-	"petplate/utils"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
 )
 
 func AddService(c *gin.Context){
-	_, err := utils.GetJWTClaim(c) 
-    if err != nil {
-        c.JSON(http.StatusUnauthorized, gin.H{
-            "status":  "failed",
-            "message": "unauthorized or invalid token",
-        })
-        return
-    }
+	email, exist := c.Get("email")
+	if !exist {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"status":  "failed",
+			"message": "Unauthorized or invalid token",
+		})
+		return
+	}
+
+	// Type assertion to string, not uint
+	_, ok := email.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "failed",
+			"message": "Failed to retrieve email from token",
+		})
+		return
+	}
 	var req models.ServiceRequest
 	if err:=c.ShouldBind(&req);err!=nil{
 		c.JSON(http.StatusBadRequest,gin.H{
@@ -26,6 +36,21 @@ func AddService(c *gin.Context){
 	})
 	return
 	}
+	validate := validator.New()
+	if err := validate.Struct(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "failed",
+			"message": err.Error(),
+		})
+		return
+	}
+	if req.Price<0{
+        c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "failed",
+			"message": "price should be positive",
+		})
+		return
+    }
 	service:=models.Service{
 		ID: req.ID,
 		Name: req.Name,
@@ -47,12 +72,23 @@ func AddService(c *gin.Context){
     })
 }
 func EditService(c *gin.Context){
-	_,err:=utils.GetJWTClaim(c)
-	if err!=nil{
-		c.JSON(http.StatusUnauthorized,gin.H{
-			"status":"failed",
-			"message":"unauthorized or invalid Token",
+	email, exist := c.Get("email")
+	if !exist {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"status":  "failed",
+			"message": "Unauthorized or invalid token",
 		})
+		return
+	}
+
+	// Type assertion to string, not uint
+	_, ok := email.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "failed",
+			"message": "Failed to retrieve email from token",
+		})
+		return
 	}
 	ServiceID:=c.Query("id")
 	if ServiceID == "" {
@@ -62,6 +98,7 @@ func EditService(c *gin.Context){
 		})
 		return
 	}
+	
 	var req models.ServiceRequest
 	if err:=c.ShouldBind(&req);err!=nil{
 		c.JSON(http.StatusBadRequest,gin.H{
@@ -69,6 +106,21 @@ func EditService(c *gin.Context){
 			"message":"invalid input",
 		})
 	}
+	validate := validator.New()
+	if err := validate.Struct(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "failed",
+			"message": err.Error(),
+		})
+		return
+	}
+	if req.Price<0{
+        c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "failed",
+			"message": "price should be positive",
+		})
+		return
+    }
 	var service models.Service
 	if err:=database.DB.Where("id = ?",ServiceID).First(&service).Error;err!=nil{
 		c.JSON(http.StatusInternalServerError,gin.H{
@@ -93,14 +145,24 @@ func EditService(c *gin.Context){
 
 }
 func DeleteService(c *gin.Context){
-	_, err := utils.GetJWTClaim(c) 
-    if err != nil {
-        c.JSON(http.StatusUnauthorized, gin.H{
-            "status":  "failed",
-            "message": "unauthorized or invalid token",
-        })
-        return
-    }
+	email, exist := c.Get("email")
+	if !exist {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"status":  "failed",
+			"message": "Unauthorized or invalid token",
+		})
+		return
+	}
+
+	// Type assertion to string, not uint
+	_, ok := email.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "failed",
+			"message": "Failed to retrieve email from token",
+		})
+		return
+	}
 	ServiceID:=c.Query("id")
 	if ServiceID==""{
 		c.JSON(http.StatusBadRequest, gin.H{

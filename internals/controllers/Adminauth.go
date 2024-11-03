@@ -41,7 +41,7 @@ func AdminLogin(c *gin.Context){
 		})
 		return
 	}
-	tokenString, err := utils.GenerateJWT(admin.Email)
+	tokenString, err := utils.GenerateJWT(admin.Email,"admin")
     if err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{
             "status":  "failed",

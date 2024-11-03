@@ -8,19 +8,31 @@ import (
 	"petplate/utils"
 	"strconv"
 
+	"github.com/go-playground/validator/v10"
+
 	"github.com/gin-gonic/gin"
 )
 
 func AddProducts(c *gin.Context) {
     // Check admin authorization (JWT)
-    _, err := utils.GetJWTClaim(c) 
-    if err != nil {
-        c.JSON(http.StatusUnauthorized, gin.H{
-            "status":  "failed",
-            "message": "unauthorized or invalid token",
-        })
-        return
-    }
+    email, exist := c.Get("email")
+	if !exist {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"status":  "failed",
+			"message": "Unauthorized or invalid token",
+		})
+		return
+	}
+
+	// Type assertion to string, not uint
+	_, ok := email.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "failed",
+			"message": "Failed to retrieve email from token",
+		})
+		return
+	}
 
     // Bind the incoming JSON to the AddProductRequest struct
     var preq models.AddProductRequest
@@ -30,6 +42,21 @@ func AddProducts(c *gin.Context) {
             "message": "invalid input",
         })
         return
+    }
+    validate := validator.New()
+	if err := validate.Struct(&preq); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "failed",
+			"message": err.Error(),
+		})
+		return
+	}
+    if preq.Price<0{
+        c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "failed",
+			"message": "price should be positive",
+		})
+		return
     }
 
     // Create the product object
@@ -59,14 +86,24 @@ func AddProducts(c *gin.Context) {
     })
 }
 func EditProduct(c *gin.Context){
-	_, err := utils.GetJWTClaim(c) 
-    if err != nil {
-        c.JSON(http.StatusUnauthorized, gin.H{
-            "status":  "failed",
-            "message": "unauthorized or invalid token",
-        })
-        return
-    }
+    email, exist := c.Get("email")
+	if !exist {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"status":  "failed",
+			"message": "Unauthorized or invalid token",
+		})
+		return
+	}
+
+	// Type assertion to string, not uint
+	_, ok := email.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "failed",
+			"message": "Failed to retrieve email from token",
+		})
+		return
+	}
 	productID:=c.Query("id")
 	if productID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -91,10 +128,25 @@ func EditProduct(c *gin.Context){
         })
         return
     }
+    validate := validator.New()
+	if err := validate.Struct(&preq); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "failed",
+			"message": err.Error(),
+		})
+		return
+	}
+    if preq.Price<0{
+        c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "failed",
+			"message": "price should be positive",
+		})
+		return
+    }
 	if err := database.DB.Model(&product).Updates(preq).Error; err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{
             "status":  "failed",
-            "message": "Could not edit category",
+            "message": "Could not find product",
         })
         return
     }
@@ -106,14 +158,24 @@ func EditProduct(c *gin.Context){
     })
 }
 func DeleteProducts(c *gin.Context){
-	_, err := utils.GetJWTClaim(c) 
-    if err != nil {
-        c.JSON(http.StatusUnauthorized, gin.H{
-            "status":  "failed",
-            "message": "unauthorized or invalid token",
-        })
-        return
-    }
+    email, exist := c.Get("email")
+	if !exist {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"status":  "failed",
+			"message": "Unauthorized or invalid token",
+		})
+		return
+	}
+
+	// Type assertion to string, not uint
+	_, ok := email.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "failed",
+			"message": "Failed to retrieve email from token",
+		})
+		return
+	}
 	productID:=c.Query("id")
 	if productID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -202,5 +264,94 @@ func CategoryByProduct(c *gin.Context){
         "status":"success",
         "message":"product found with category id",
         "data":product,
+    })
+}
+func ProductRating(c *gin.Context){
+    email, exist := c.Get("email")
+	if !exist {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"status":  "failed",
+			"message": "Unauthorized or invalid token",
+		})
+		return
+	}
+    emailval, ok := email.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "failed",
+			"message": "Failed to retrieve email from token",
+		})
+		return
+	}
+	userid,ok:=utils.GetUserIDByEmail(emailval)
+		if !ok{
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status": "failed",
+				"message": "invalid input",
+			})
+			return
+		}
+        var req models.RatingRequest
+        if err := c.ShouldBindJSON(&req); err != nil {
+            c.JSON(http.StatusBadRequest, gin.H{
+                "status": "failed",
+                "message": "invalid input",
+            })
+            return
+        }
+        validate := validator.New()
+        if err := validate.Struct(&req); err != nil {
+            c.JSON(http.StatusBadRequest, gin.H{
+                "status":  "failed",
+                "message": err.Error(),
+            })
+            return
+        }
+    var ord []models.Order
+    if err:=database.DB.Where("user_id=?",userid).Find(&ord).Error;err!=nil{
+        c.JSON(http.StatusInternalServerError,gin.H{
+            "status":"failed",
+            "message":"Error occurred while retrieving orders",
+        })
+        return
+    }
+    var oritem  []models.OrderItem
+    for _,v:=range ord{
+        if err:=database.DB.Where("order_id=?",v.OrderID).Find(&oritem).Error;err!=nil{
+            c.JSON(http.StatusInternalServerError,gin.H{
+                "status":"failed",
+                "message":"Error occurred while retrieving order items",
+                })
+                return
+        }
+    }
+    flag:=false
+    for _,v:=range oritem{
+        if v.ProductID==req.ProductID{
+            flag=true
+        }
+    }
+    if flag==false{
+        c.JSON(http.StatusBadRequest, gin.H{
+            "status":  "failed",
+            "message": "product not found",
+        })
+        return  
+    }
+    rate:=models.Rating{
+        ProductID: req.ProductID,
+        Rating: req.Rating,
+        Comment: req.Comment,
+    }
+    if err:=database.DB.Create(&rate).Error;err!=nil{
+        c.JSON(http.StatusInternalServerError, gin.H{
+            "status":  "failed",
+            "message": "Failed to create rating",
+            })
+        return    
+    }
+    c.JSON(http.StatusOK,gin.H{
+        "status":"success",
+        "message":"Thank you for rating",
     })
 }

@@ -2,6 +2,8 @@ package models
 
 import (
 	//"time"
+	"time"
+
 	"gorm.io/gorm"
 )
 
@@ -38,7 +40,8 @@ type Category struct {
     Description string `json:"description"`
 }
 type Product struct{
-	ID uint
+	gorm.Model
+	ID uint			`gorm:"primaryKey;autoIncrement;column:product_id" json:"product_id"`
 	Name  			string `validate:"required" json:"name"`
 	Description     string  `gorm:"column:description" validate:"required" json:"description"`
 	CategoryID      uint    `gorm:"foreignKey:CategoryID" validate:"required" json:"category_id"`
@@ -55,3 +58,61 @@ type Service struct{
 	Price   float64	`validate:"required,number" json:"price"`
 	ImageURL string  `gorm:"column:image_url" validate:"required" json:"image_url"`
 }
+type Address struct {
+	UserID       uint   `json:"user_id" gorm:"column:user_id"`
+	AddressID    uint   `gorm:"primaryKey;autoIncrement;column:address_id" json:"address_id"`
+	PhoneNumber  uint   `gorm:"column:phone_number" validate:"number,min=1000000000,max=9999999999" json:"phone_number"`
+	AddressType  string `validate:"required" json:"address_type" gorm:"column:address_type"`
+	StreetName   string `validate:"required" json:"street_name" gorm:"column:street_name"`
+	StreetNumber string `validate:"required" json:"street_number" gorm:"column:street_number"`
+	City         string `validate:"required" json:"city" gorm:"column:city"`
+	State        string `validate:"required" json:"state" gorm:"column:state"`
+	PostalCode   string `validate:"required" json:"postal_code" gorm:"column:postal_code"`
+}
+type Cart struct{
+	UserID uint   `json:"user_id" gorm:"column:user_id"`
+	ProductID uint	`json:"product_id"`
+	Quantity uint
+}
+type ShippingAddress struct{
+	PhoneNumber  uint   `gorm:"column:phone_number" validate:"number,min=1000000000,max=9999999999" json:"phone_number"`
+	AddressType  string `validate:"required" json:"address_type" gorm:"column:address_type"`
+	StreetName   string `validate:"required" json:"street_name" gorm:"column:street_name"`
+	StreetNumber string `validate:"required" json:"street_number" gorm:"column:street_number"`
+	City         string `validate:"required" json:"city" gorm:"column:city"`
+	State        string `validate:"required" json:"state" gorm:"column:state"`
+	PostalCode   string `validate:"required" json:"postal_code" gorm:"column:postal_code"`
+}
+type Order  struct{
+	OrderID uint `gorm:"primaryKey;autoIncrement;column:order_id" json:"order"`
+	UserID uint `json:"user_id" gorm:"column:user_id"`
+	OrderDate time.Time `json:"order_date" gorm:"column:order_date"`
+	Total float64 `json:"total" gorm:"column:total"`
+	PaymentMethod  string  `json:"payment_method" gorm:"column:payment_method"`
+	ShippingAddress ShippingAddress `gorm:"embedded" json:"shipping_address"`
+	PaymentStatus   string `json:"payment_status" gorm:"column:payment_status"`
+	OrderStatus string `json:"order_status" gorm:"column:order_status"`
+
+}
+type  OrderItem struct{
+	OrderItemID  uint `gorm:"primaryKey;autoIncrement" json:"order_item_id"`
+	OrderID uint `json:"order_id" gorm:"column:order_id"`
+	ProductID uint `json:"product_id" gorm:"column:product_id"`
+	Quantity uint `json:"quantity" gorm:"column:quantity"`
+	Price  float64 `json:"price" gorm:"column:price"`
+	OrderStatus  string `json:"order_status" gorm:"column:order_status"`
+}
+type Rating  struct{
+	RatingID uint `gorm:"primaryKey;autoIncrement" json:"rating_id"`
+	ProductID  uint `json:"product_id" gorm:"column:product_id"`
+	Rating   float64 `json:"rating" gorm:"column:rating"`
+	Comment   string `json:"comment" gorm:"column:comment"`
+
+}
+
+
+
+
+	
+	
+	
