@@ -17,20 +17,22 @@ func GetUserIDByEmail(email string) (uint, bool) {
 	}
 	return userID, true
 }
-func Itercart(ucart []models.Cart)float64{
+func Itercart(ucart []models.Cart)(float64,float64){
 	//var orderitems[]models.OrderItem
 	var TotalAmount float64
+	var RawAmount float64
 	for _,cartitem:=range ucart{
 		var prod  models.Product
-		if err:=database.DB.Where("id=?",cartitem.ProductID).First(&prod).Error;err!=nil{
+		if err:=database.DB.Where("product_id=?",cartitem.ProductID).First(&prod).Error;err!=nil{
 			// c.JSON(http.StatusInternalServerError,gin.H{
 			// 	"status":"failed",
 			// 	"message":err.Error(),
 			// 	})
 				// return
 		}
-		amount:=prod.Price*float64(cartitem.Quantity)
-		
+
+		amount:=prod.OfferPrice*float64(cartitem.Quantity)
+		ramount:=prod.Price*float64(cartitem.Quantity)
 		// orditems:=models.OrderItem{
 		// 	OrderID: ,
 		// 	ProductID: cartitem.ProductID,
@@ -45,23 +47,27 @@ func Itercart(ucart []models.Cart)float64{
 		// 		})
 		// 		return
 		// }
+		var category models.Category
+		database.DB.Model(&category).Where("id=?",prod.CategoryID).First(&category)
 		TotalAmount+=amount
-		//orderitems=append(orderitems,orditems)
+		RawAmount+=ramount
+		amount-=prod.Price*(category.CategoryOffer/100)	
+		//orderitemsppend(orderitems,orditems)
 			
 	}
-	return TotalAmount
+	return TotalAmount,RawAmount
 }
 func CartToOrderItem(c gin.Context,ucart []models.Cart,orderid uint){
 	for _,cartitem:=range ucart{
 		var prod  models.Product
-		if err:=database.DB.Where("id=?",cartitem.ProductID).First(&prod).Error;err!=nil{
+		if err:=database.DB.Where("product_id=?",cartitem.ProductID).First(&prod).Error;err!=nil{
 			c.JSON(http.StatusInternalServerError,gin.H{
 				"status":"failed",
 				"message":err.Error(),
 				})
 				return 
 		}
-		amount:=prod.Price*float64(cartitem.Quantity)
+		amount:=prod.OfferPrice*float64(cartitem.Quantity)
 		
 		orditems:=models.OrderItem{
 			OrderID: orderid,
@@ -130,5 +136,12 @@ func CancelOrderItem(orderID, productID uint) error {
 	}
 
 	return nil
+}
+func FetchOrderDetails(orderid string)(models.Order,error){
+	var order  models.Order
+
+	database.DB.Model(&order).Where("order_id=?",orderid).First(&order)
+	return order,nil
+		
 }
 

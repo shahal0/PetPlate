@@ -38,14 +38,15 @@ type Category struct {
     gorm.Model
     Name        string `json:"name" gorm:"unique;not null"`
     Description string `json:"description"`
+	CategoryOffer float64  `json:"category_offer"`
 }
 type Product struct{
-	gorm.Model
 	ID uint			`gorm:"primaryKey;autoIncrement;column:product_id" json:"product_id"`
 	Name  			string `validate:"required" json:"name"`
 	Description     string  `gorm:"column:description" validate:"required" json:"description"`
 	CategoryID      uint    `gorm:"foreignKey:CategoryID" validate:"required" json:"category_id"`
 	Price           float64 `validate:"required,number" json:"price"`
+	OfferPrice        float64 `gorm:"column:offer_price" json:"offer_price"`
 	MaxStock        uint    `validate:"required,number" json:"max_stock"`
 	RatingSum       float64 `gorm:"column:rating_sum" json:"rating_sum"`
 	ImageURL        string  `gorm:"column:image_url" validate:"required" json:"image_url"`
@@ -87,7 +88,11 @@ type Order  struct{
 	OrderID uint `gorm:"primaryKey;autoIncrement;column:order_id" json:"order"`
 	UserID uint `json:"user_id" gorm:"column:user_id"`
 	OrderDate time.Time `json:"order_date" gorm:"column:order_date"`
-	Total float64 `json:"total" gorm:"column:total"`
+	RawAmount  float64 `json:"raw_amount" gorm:"column:raw_amount"`
+	OfferTotal float64 `json:"total" gorm:"column:total"`
+	CouponCode	string  `json:"coupon_code" gorm:"column:coupon_code"`
+	DiscountAmount  float64 `json:"discount_amount" gorm:"column:discount_amount"`
+	FinalAmount  float64 `json:"final_amount" gorm:"column:final_amount"`
 	PaymentMethod  string  `json:"payment_method" gorm:"column:payment_method"`
 	ShippingAddress ShippingAddress `gorm:"embedded" json:"shipping_address"`
 	PaymentStatus   string `json:"payment_status" gorm:"column:payment_status"`
@@ -109,6 +114,37 @@ type Rating  struct{
 	Comment   string `json:"comment" gorm:"column:comment"`
 
 }
+type Payment struct{
+	PaymentID uint `gorm:"primaryKey;autoIncrement" json:"payment_id" `
+	OrderID string `json:"order_id" gorm:"column:order_id"`
+	RayzorpayOrderID  string `json:"rayzorpay_order_id" gorm:"column:rayzorpay`
+	RayzorPayPaymentID  string `json:"rayzorpay_payment_id" gorm:"column:rayzorpay`
+	RayzorPaySignature   string `json:"rayzorpay_signature" gorm:"column:rayzorpay`
+	PaymentGateway  string `json:"payment_gateway" gorm:"column:payment_gateway"`
+	PaymentStatus    string `json:"payment_status" gorm:"column:payment_status"`
+	AmountPaid 	float64`json:"amount_paid" gorm:column:amount_paid`
+}
+type Coupon struct {
+	Code              string    `gorm:"type:varchar(255);unique_index" json:"code"`
+	DiscountPercentage float64   `json:"discount_percentage"` 
+	ExpirationDate    time.Time `json:"expiration_date"`
+	IsActive          bool      `json:"is_active"` 
+	MinimumPurchase   float64   `json:"minimum_purchase"` 
+	Description       string    `json:"description"` 
+	MaximumDiscountAmount  float64 `json:"maximum_discount_amount"`
+}
+type CouponUsage struct{
+	Coupon string  `json:"coupon" gorm:"column:coupon"`
+	UserID  uint `json:"user_id" gorm:"column:user_id"`
+	UsageCOunt  uint `json:"usage_count" gorm:"column:usage_count"`
+
+}
+type Whishlist struct{
+	UserID uint   `json:"user_id" gorm:"column:user_id"`
+	ProductID uint	`json:"product_id"`
+}
+
+
 
 
 

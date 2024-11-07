@@ -19,6 +19,7 @@ func InitRoutes(router *gin.Engine){
 	})
 	
 //
+
 router.POST("/user/signup",controllers.SignupUser)
 router.POST("/user/login",controllers.EmailLogin)
 
@@ -35,6 +36,10 @@ router.GET("/listservice",controllers.GetServices)
 router.GET("/listcategories", controllers.GetCategories)
 router.GET("/listproductbycategory", controllers.CategoryByProduct)
 router.GET("/user/profie",controllers.GetUserProfile)
+router.GET("/payment",controllers.RenderRayzorPay)
+router.POST("/create-order",controllers.CreateOrder)
+router.POST("/verify-payment/:orderid",controllers.VerifyPayment)
+router.POST("/payment-failed",controllers.FailedHandling)
 adminRoutes := router.Group("/admin")
 adminRoutes.Use(middlewares.AuthMiddleware("admin"))
 {
@@ -51,7 +56,7 @@ adminRoutes.Use(middlewares.AuthMiddleware("admin"))
 categoryGroup := router.Group("/admin/categories")
 categoryGroup.Use(middlewares.AuthMiddleware("admin"))
     {
-        categoryGroup.POST("/add", controllers.CreateCategory) // Create a new category
+        categoryGroup.POST("/add", controllers.CreateCategory)
 	   categoryGroup.PUT("/edit",controllers.CategoryEdit)
 	   categoryGroup.DELETE("/delete",controllers.CategoryDelete)
     }
@@ -62,6 +67,13 @@ ProductGroup.Use(middlewares.AuthMiddleware("admin"))
 	ProductGroup.PUT("/edit",controllers.EditProduct)
 	ProductGroup.DELETE("/delete",controllers.DeleteProducts)
 
+}
+CouponGroup:=router.Group("/admin/coupon")
+CouponGroup.Use(middlewares.AuthMiddleware("admin"))
+{
+	CouponGroup.POST("/add",controllers.AdminAddCoupon)
+	CouponGroup.PATCH("/disable",controllers.DisableCoupon)
+	CouponGroup.GET("/show",controllers.ListCoupon)
 }
 ServiceGroup := router.Group("/admin/services")
 ServiceGroup.Use(middlewares.AuthMiddleware("admin"))
@@ -100,6 +112,13 @@ OrderGroup.Use(middlewares.AuthMiddleware("user"))
 	OrderGroup.PATCH("/cancel/item",controllers.CancelItemFromUserOrders)
 	OrderGroup.PUT("/product/rating",controllers.ProductRating)
 	OrderGroup.GET("/product/search",controllers.SearchProduct)
+}
+WhislistGroup := router.Group("/user/whishlist")
+WhislistGroup.Use(middlewares.AuthMiddleware("user"))
+{
+	WhislistGroup.POST("/add",controllers.AddToWhishlist)
+	WhislistGroup.GET("/list",controllers.SowWhislist)
+	WhislistGroup.PATCH("/addtocart",controllers.AddToCart)
 }
 
 }

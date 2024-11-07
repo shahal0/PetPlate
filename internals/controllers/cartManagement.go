@@ -76,7 +76,7 @@ func AddCart(c *gin.Context) {
 			return
 		}
 		var product models.Product
-		if err := database.DB.Model(&models.Product{}).Where("id = ?", req.ProductID).First(&product).Error;err!=nil{
+		if err := database.DB.Model(&models.Product{}).Where("product_id = ?", req.ProductID).First(&product).Error;err!=nil{
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "failed",
 				"message": "unable find the product",
@@ -166,6 +166,7 @@ func ListCart(c *gin.Context){
 		})
 		return
 	}
+	couponcode:=c.Query("couponcode")
 	userid,ok:=utils.GetUserIDByEmail(emailval)
 	if !ok{
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -182,11 +183,14 @@ func ListCart(c *gin.Context){
 		})
 		return
 	}
+	var message string
 	var TotalAmount float64
+	flag:=0
+	var coupon  models.Coupon
 	var responseCarts[]models.CartProduct
 	for _,cartitem:=range cart{
 		var product models.Product
-		result := database.DB.Model(models.Product{}).Where("id=?", cartitem.ProductID).First(&product)
+		result := database.DB.Model(models.Product{}).Where("product_id=?", cartitem.ProductID).First(&product)
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 				c.JSON(http.StatusNotFound, gin.H{
@@ -202,25 +206,48 @@ func ListCart(c *gin.Context){
 			log.Printf("error %v", result.Error)
 			return
 		}
+		database.DB.Model(&models.Coupon{}).Where("code=?",couponcode).First(&coupon)
+		if couponcode==""{
+			message="no coupon applied"
+		}else if coupon.IsActive==false{
+			message="coupon is not active"
+		}else{
+			message="coupon applied"
+			flag=1
+		}
 		responseCart:=models.CartProduct{
 			Product_id:cartitem.ProductID,
 			Name:product.Name,
 			Description:product.Description,
 			CategoryID:product.CategoryID,
-			Price  :product.Price,
+			Price  :product.OfferPrice,
 			Quantity: cartitem.Quantity,
 			ImageURL :product.ImageURL,
 		}
+		var category models.Category
+		database.DB.Model(&category).Where("id=?",product.CategoryID).First(&category)
 		responseCarts=append(responseCarts,responseCart)
-		amount:=product.Price*float64(cartitem.Quantity)	
+		amount:=product.OfferPrice*float64(cartitem.Quantity)
+		amount-=product.Price*(category.CategoryOffer/100)	
 		TotalAmount+=amount
+	}
+	if flag==1{
+		if TotalAmount<coupon.MinimumPurchase{
+			c.JSON(http.StatusBadRequest,gin.H{
+				"status":  "failed",
+				"message": "minimum purchase amount not met",
+			})
+			return
+			}
+		TotalAmount-=TotalAmount*(coupon.DiscountPercentage/100)
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "success",
 		"data":    responseCarts,
 		"CartAmount":TotalAmount,
+		"message":message,
 	})
-}
+	}
 func DeleteFromCart(c *gin.Context){
 	email, exist := c.Get("email")
 	if !exist {
@@ -270,3 +297,4 @@ func DeleteFromCart(c *gin.Context){
 		"message":"product deleted from the cart",
 	})
 }
+

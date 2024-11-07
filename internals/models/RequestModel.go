@@ -1,6 +1,9 @@
 package models
 
-import "github.com/dgrijalva/jwt-go"
+import (
+
+	"github.com/dgrijalva/jwt-go"
+)
 
 type SignupRequest struct {
 	Name            string `validate:"required" json:"name"`
@@ -32,6 +35,7 @@ type AddProductRequest struct {
 	Description string  `gorm:"column:description" validate:"required" json:"description"`
 	CategoryID  uint    `gorm:"foreignKey:CategoryID" validate:"required" json:"category_id"`
 	Price       float64 `validate:"required,number" json:"price"`
+	OfferPrice        float64 `validate:"required,number"gorm:"column:offer_price" json:"offer_price"`
 	MaxStock    uint    `validate:"required,number" json:"max_stock"`
 	RatingSum   float64 `gorm:"column:rating_sum" json:"rating_sum"`
 	ImageURL    string  `gorm:"column:image_url" validate:"required" json:"image_url"`
@@ -63,6 +67,7 @@ type AddressRequest struct {
 type CartRequest struct {
 	ProductID uint `json:"product_id" gorm:"column:product_id"`
 	Quantity  uint `validate:"required,number" json:"quantity"`
+	CategoryOffer float64  `json:"category_offer"`
 }
 type OrderRequest struct {
 	PaymentMethod uint `json:"payment_method" validate:"required"`
@@ -77,4 +82,15 @@ type PasswordChange struct {
 	OldPassword     string `json:"old_password" validate:"required,min=8,max=128"`
 	NewPassword     string `json:"new_password" validate:"required,min=8,max=128"`
 	ConfirmPassword string `json:"confirm_password" validate:"required,min=8,max=128`
+}
+type CouponRequest struct{
+	Code  string `json:"code" validate:"required,min=3,max=10"`
+	DiscountPercentage float64   `json:"discount_percentage"validate:"required,min=0,max=100"` 
+	ExpirationDate    uint	`json:"expiry_date"`
+	IsActive          bool      `json:"is_active"` 
+	MinimumPurchase   float64   `json:"minimum_purchase"` 
+	MaximumDiscountAmount  float64 `json:"maximum_discount_amount"`
+}
+type WhislistRequest struct {
+	ProductID uint `json:"product_id" gorm:"column:product_id"`
 }

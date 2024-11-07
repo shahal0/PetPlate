@@ -3,6 +3,7 @@ package controllers
 import (
 	// "errors"
 	//"log"
+	"log"
 	"net/http"
 	"petplate/internals/database"
 	"petplate/internals/models"
@@ -42,6 +43,7 @@ func PlaceOrder(c *gin.Context) {
 	}
 
 	// Bind request body to CartRequest struct
+	couponcode := c.Query("couponCode")
 	var req models.OrderRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -91,12 +93,57 @@ func PlaceOrder(c *gin.Context) {
 		})
 		return
 	}
-
-	TotalAmount := utils.Itercart(ucart)
+	var message  string
+	TotalAmount,Rawamount:= utils.Itercart(ucart)
+	var coup models.Coupon
+	if couponcode!=""{
+	 database.DB.Where("code=?", couponcode).First(&coup)
+	 message="coupon is applied"
+		
+	var coupus  models.CouponUsage
+	 database.DB.Where("coupon=?",couponcode).First(&coupus)
+	 if coup.IsActive==false{
+		message="coupon is not active"
+	}else if coupus.UsageCOunt>=3{
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "failed",
+			"message": "Coupon usage limit is over",
+			})
+			return
+	}else if coup.ExpirationDate.Before(time.Now().Truncate(24 * time.Hour)) {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "failed",
+			"message": "Coupon is expired",
+			"coupon Status":message,
+		})
+		return
+	}
+	log.Println("total amount",TotalAmount)
+	if TotalAmount<coup.MinimumPurchase{
+		c.JSON(http.StatusBadRequest,gin.H{
+			"status":  "failed",
+			"message": "Minimum purchase amount is not met",
+		})
+		return
+	}else if coup.ExpirationDate.Before(time.Now().Truncate(24 * time.Hour)) {
+		message="Coupon is expired"
+	}
+	}else{
+		message="no coupon applied"
+	}
+	
+	discountAmount := TotalAmount * (coup.DiscountPercentage / 100)
+	if discountAmount>coup.MaximumDiscountAmount{
+		discountAmount=coup.MaximumDiscountAmount
+	}
 	order := models.Order{
 		UserID:        userid,
 		OrderDate:     time.Now(),
-		Total:         TotalAmount,
+		RawAmount: Rawamount,
+		OfferTotal:         TotalAmount,
+		CouponCode: couponcode,
+		DiscountAmount: discountAmount,
+		FinalAmount: TotalAmount-discountAmount,
 		PaymentMethod: paymentMethod,
 		PaymentStatus: models.Pending,
 		OrderStatus:   models.Pending,
@@ -117,10 +164,33 @@ func PlaceOrder(c *gin.Context) {
 		return
 	}
 	utils.CartToOrderItem(*c, ucart, order.OrderID)
+	var cu models. CouponUsage
+	if err := database.DB.Model(&cu).Where("coupon = ? AND user_id = ?", couponcode, userid).Update("usage_count",cu.UsageCOunt+1).Error;err!=nil{
+		c.JSON(http.StatusInternalServerError,gin.H{
+			"status":  "failed",
+			"message": err.Error(),
+		})
+		return
+	}else{
+		couponusage:=models.CouponUsage{
+			Coupon: couponcode,
+			UserID: userid,
+			UsageCOunt: 1,
+		}
+		if err:=database.DB.Create(&couponusage).Error;err!=nil{
+			c.JSON(http.StatusBadRequest,gin.H{
+				"status":  "failed",
+				"message": err.Error(),
+			})
+			return
+		}
+	}
+	
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "success",
 		"message": "Order created successfully",
 		"data":    order,
+		"coupon Status":message,
 	})
 }
 func UserSeeOrders(c *gin.Context) {
@@ -170,7 +240,7 @@ func UserSeeOrders(c *gin.Context) {
 		var orderitems []models.OrderItemResponse
 		for _, ordItem := range ordItems {
 			var prodct models.Product
-			if err := database.DB.Where("id=?", ordItem.ProductID).First(&prodct).Error; err != nil {
+			if err := database.DB.Where("product_id=?", ordItem.ProductID).First(&prodct).Error; err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{
 					"status":  "failed",
 					"message": err.Error(),
@@ -184,16 +254,19 @@ func UserSeeOrders(c *gin.Context) {
 				ImageURL:    prodct.ImageURL,
 				CategoryId:  prodct.CategoryID,
 				Description: prodct.Description,
-				Price:       prodct.Price,
+				Price:       prodct.OfferPrice,
 				Quantity:    ordItem.Quantity,
-				TotalPrice:  float64(ordItem.Quantity) * prodct.Price,
+				TotalPrice:  float64(ordItem.Quantity) * prodct.OfferPrice,
 				OrderStatus: ordItem.OrderStatus,
 			})
 		}
 		ordresponse = append(ordresponse, models.OrderResponse{
 			OrderID:         ords.OrderID,
 			OrderDate:       ords.OrderDate,
-			TotalAmount:     ords.Total,
+			RawAmount: ords.RawAmount,
+			OfferTotal: ords.OfferTotal,
+			DiscountPrice: ords.DiscountAmount,
+			FinalAmount: ords.FinalAmount,
 			ShippingAddress: ords.ShippingAddress,
 			OrderStatus:     ords.OrderStatus,
 			PaymentStatus:   ords.PaymentStatus,
@@ -263,7 +336,7 @@ func CancelItemFromUserOrders(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Order item cancelled and order total updated successfully"})
 }
-func AdminOrderList(c *gin.Context){
+func AdminOrderList(c *gin.Context) {
 	_, exist := c.Get("email")
 	if !exist {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -272,73 +345,74 @@ func AdminOrderList(c *gin.Context){
 		})
 		return
 	}
-	var  orders []models.Order
-	if err := database.DB.Model(&models.Order{}).Find(&orders).Error; err != nil{
-		c.JSON(http.StatusInternalServerError,gin.H{
+	var orders []models.Order
+	if err := database.DB.Model(&models.Order{}).Find(&orders).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "failed",
 			"message": "Failed to retrieve orders",
 		})
 		return
 	}
 	var ordresponses []models.AdminOrderResponse
-	for _,order:=range orders{
+	for _, order := range orders {
 		var orditemresp []models.OrderItemResponse
 		var orderitem []models.OrderItem
-		if  err := database.DB.Model(&orderitem).Where("order_id=?",order.OrderID).Find(&orderitem).Error;err!=nil{
-			c.JSON(http.StatusInternalServerError,gin.H{
+		if err := database.DB.Model(&orderitem).Where("order_id=?", order.OrderID).Find(&orderitem).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "failed",
 				"message": "Failed to retrieve order items",
-				})
-				return
+			})
+			return
 		}
-		for _,orditem:=range orderitem{
+		for _, orditem := range orderitem {
 			var prodct models.Product
-			if err:=database.DB.Model(&prodct).Where("id=?",orditem.ProductID).First(&prodct).Error;err!=nil{
-				c.JSON(http.StatusInternalServerError,gin.H{
+			if err := database.DB.Model(&prodct).Where("id=?", orditem.ProductID).First(&prodct).Error; err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{
 					"status":  "failed",
 					"message": "Failed to retrieve product",
-					})
-					return
+				})
+				return
 			}
-			orditemresp=append(orditemresp, models.OrderItemResponse{
-				OrderID:   orditem.OrderID,
-				ProductId: orditem.ProductID,
+			orditemresp = append(orditemresp, models.OrderItemResponse{
+				OrderID:     orditem.OrderID,
+				ProductId:   orditem.ProductID,
 				ProductName: prodct.Name,
-				ImageURL: prodct.ImageURL,
-				CategoryId: prodct.CategoryID,
+				ImageURL:    prodct.ImageURL,
+				CategoryId:  prodct.CategoryID,
 				Description: prodct.Description,
-				Price: prodct.Price,
-				Quantity: orditem.Quantity,
-				TotalPrice: prodct.Price*float64(orditem.Quantity),
+				Price:       prodct.OfferPrice,
+				Quantity:    orditem.Quantity,
+				TotalPrice:  prodct.Price * float64(orditem.Quantity),
 				OrderStatus: orditem.OrderStatus,
-
 			})
 		}
 		var ussr models.User
-		if err:=database.DB.Model(&ussr).Where("id=?",order.UserID).First(&ussr).Error;err!=nil{
-			c.JSON(http.StatusInternalServerError,gin.H{
+		if err := database.DB.Model(&ussr).Where("id=?", order.UserID).First(&ussr).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "failed",
 				"message": "Failed to retrieve user",
 			})
 			return
 		}
-		ordresponses=append(ordresponses,models.AdminOrderResponse{
-			UserId: order.UserID,
-			UserName: ussr.Name,
-			OrderID: order.OrderID,
-			OrderDate: order.OrderDate,
-			TotalAmount: order.Total,
+		ordresponses = append(ordresponses, models.AdminOrderResponse{
+			UserId:          order.UserID,
+			UserName:        ussr.Name,
+			OrderID:         order.OrderID,
+			OrderDate:       order.OrderDate,
+			OfferTotal: order.OfferTotal,
+			DiscountPrice: order.DiscountAmount,
+			FinalAmount: order.FinalAmount,
 			ShippingAddress: order.ShippingAddress,
-			OrderStatus: order.OrderStatus,
-			PaymentStatus: order.PaymentStatus,
-			PaymentMethod: order.PaymentMethod,
-			Items: orditemresp,
+			OrderStatus:     order.OrderStatus,
+			PaymentStatus:   order.PaymentStatus,
+			PaymentMethod:   order.PaymentMethod,
+			Items:           orditemresp,
 		})
 
 	}
-	c.JSON(http.StatusOK,gin.H{
-		"status":  "success",
-		"data": ordresponses,
+	c.JSON(http.StatusOK, gin.H{
+		"status": "success",
+		"data":   ordresponses,
 	})
 
 }
@@ -420,79 +494,77 @@ func UpdateOrderstatus(c *gin.Context) {
 	orderID := uint(parsedID)
 
 	var ord models.Order
-	if err:=database.DB.Where("order_id=?",orderID).First(&ord).Error;err!=nil{
-		c.JSON(http.StatusInternalServerError,gin.H{
+	if err := database.DB.Where("order_id=?", orderID).First(&ord).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "failed",
 			"message": "Failed to retrieve order",
 		})
 		return
 	}
 	var orditems []models.OrderItem
-	if err:=database.DB.Where("order_id=?",orderID).Find(&orditems).Error;err!=nil{
-		c.JSON(http.StatusInternalServerError,gin.H{
-			"status":"failed",
-			"message":"failed to retrive order items",
+	if err := database.DB.Where("order_id=?", orderID).Find(&orditems).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "failed",
+			"message": "failed to retrive order items",
 		})
 		return
 	}
 	var updatedSatus string
 	if ord.OrderStatus == models.Pending {
-		updatedSatus=models.Confirm
-		for _,item:=range orditems{
-			if item.OrderStatus!=models.Cancelled{
-				if err := database.DB.Model(&models.OrderItem{}).Where("order_id = ?", item.OrderID).Update("order_status", updatedSatus).Error; err != nil{
-					c.JSON(http.StatusNotModified,gin.H{
-						"status":"failed",
-						"message":"unable to update orderitem status",
+		updatedSatus = models.Confirm
+		for _, item := range orditems {
+			if item.OrderStatus != models.Cancelled {
+				if err := database.DB.Model(&models.OrderItem{}).Where("order_id = ?", item.OrderID).Update("order_status", updatedSatus).Error; err != nil {
+					c.JSON(http.StatusNotModified, gin.H{
+						"status":  "failed",
+						"message": "unable to update orderitem status",
 					})
 					return
 				}
 			}
 		}
-	}else if ord.OrderStatus==models.Confirm{
-		updatedSatus=models.Shipped
-		for _,item:=range orditems{
-			if item.OrderStatus!=models.Cancelled{
-				if err := database.DB.Model(&models.OrderItem{}).Where("order_id = ?", item.OrderID).Update("order_status", updatedSatus).Error; err != nil{
-					c.JSON(http.StatusNotModified,gin.H{
-						"status":"failed",
-						"message":"unable to update orderitem status",
+	} else if ord.OrderStatus == models.Confirm {
+		updatedSatus = models.Shipped
+		for _, item := range orditems {
+			if item.OrderStatus != models.Cancelled {
+				if err := database.DB.Model(&models.OrderItem{}).Where("order_id = ?", item.OrderID).Update("order_status", updatedSatus).Error; err != nil {
+					c.JSON(http.StatusNotModified, gin.H{
+						"status":  "failed",
+						"message": "unable to update orderitem status",
 					})
 					return
 				}
 			}
 		}
-	}else {
-		updatedSatus=models.Delivered
-		for _,item:=range orditems{
-			if item.OrderStatus!=models.Cancelled{
-				if err := database.DB.Model(&models.OrderItem{}).Where("order_id = ?", item.OrderID).Update("order_status", updatedSatus).Error; err != nil{
-					c.JSON(http.StatusNotModified,gin.H{
-						"status":"failed",
-						"message":"unable to update orderitem status",
+	} else {
+		updatedSatus = models.Delivered
+		for _, item := range orditems {
+			if item.OrderStatus != models.Cancelled {
+				if err := database.DB.Model(&models.OrderItem{}).Where("order_id = ?", item.OrderID).Update("order_status", updatedSatus).Error; err != nil {
+					c.JSON(http.StatusNotModified, gin.H{
+						"status":  "failed",
+						"message": "unable to update orderitem status",
 					})
 					return
 				}
 			}
 		}
 	}
-	if err := database.DB.Model(&models.Order{}).Where("order_id = ?", ord.OrderID).Update("order_status", updatedSatus).Error; err != nil{
-		c.JSON(http.StatusNotModified,gin.H{
-			"status":"failed",
-			"message":"unable to update orderitem status",
+	if err := database.DB.Model(&models.Order{}).Where("order_id = ?", ord.OrderID).Update("order_status", updatedSatus).Error; err != nil {
+		c.JSON(http.StatusNotModified, gin.H{
+			"status":  "failed",
+			"message": "unable to update orderitem status",
 		})
 		return
 	}
-	if ord.OrderStatus==models.Delivered{
-		ord.PaymentStatus=models.Success
+	if ord.OrderStatus == models.Delivered {
+		ord.PaymentStatus = models.Success
 	}
 	database.DB.Save(&ord)
-	c.JSON(http.StatusOK,gin.H{
-		"status":"success",
-		"message":"order status updated successfully",
-		"your order status is now":updatedSatus,
+	c.JSON(http.StatusOK, gin.H{
+		"status":                   "success",
+		"message":                  "order status updated successfully",
+		"your order status is now": updatedSatus,
 	})
 
 }
-
-

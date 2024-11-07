@@ -51,12 +51,19 @@ func AddProducts(c *gin.Context) {
 		})
 		return
 	}
-    if preq.Price<0{
+    if preq.Price<0||preq.OfferPrice<0{
         c.JSON(http.StatusBadRequest, gin.H{
 			"status":  "failed",
 			"message": "price should be positive",
 		})
 		return
+    }
+    if preq.OfferPrice>preq.Price{
+        c.JSON(http.StatusBadRequest, gin.H{
+            "status":  "failed",
+            "message": "offer price should be less than price",
+            })
+            return
     }
 
     // Create the product object
@@ -65,6 +72,7 @@ func AddProducts(c *gin.Context) {
         Description: preq.Description,
         CategoryID:  preq.CategoryID,
         Price:       preq.Price,
+        OfferPrice: preq.OfferPrice,
         MaxStock:    preq.MaxStock,
         ImageURL:    preq.ImageURL,
     }
@@ -136,12 +144,19 @@ func EditProduct(c *gin.Context){
 		})
 		return
 	}
-    if preq.Price<0{
+    if preq.Price<0||preq.OfferPrice<0{
         c.JSON(http.StatusBadRequest, gin.H{
 			"status":  "failed",
 			"message": "price should be positive",
 		})
 		return
+    }
+    if preq.OfferPrice>preq.Price{
+        c.JSON(http.StatusBadRequest, gin.H{
+            "status":  "failed",
+            "message": "offer price should be less than price",
+            })
+            return
     }
 	if err := database.DB.Model(&product).Updates(preq).Error; err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{

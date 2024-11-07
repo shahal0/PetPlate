@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment Page</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f4f6f9;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+
+        .payment-container {
+            text-align: center;
+            background-color: #fff;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            max-width: 400px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #333;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+
+        p {
+            color: #666;
+            font-size: 16px;
+            margin-bottom: 30px;
+        }
+
+        .pay-button {
+            background-color: #28a745;
+            color: #fff;
+            font-size: 18px;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .pay-button:hover {
+            background-color: #218838;
+        }
+
+        .pay-button:focus {
+            outline: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="payment-container">
+        <h1>Complete Your Payment</h1>
+        <p>Click the button below to proceed with the payment securely.</p>
+        <button class="pay-button" onclick="makePayment()">Pay Now</button>
+    </div>
+    
+    <script>
+        let paymentFailureHandled = false ;
+    
+        function makePayment() {
+            let orderID = "{{ .orderID }}"; 
+            console.log("Order ID:", orderID);
+    
+            fetch(`http://localhost:8080/create-order?orderid=${orderID}`, {
+             method: 'POST',
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log("Order created:", data);
+    
+                var options = {
+                    "key": "rzp_test_1rwjnxQ6kFa3NR", 
+                    "amount": data.amount,  
+                    "currency": data.currency,
+                    "name": "Petplate",
+                    "description": "Razorpay",
+                    "order_id": data.order_id,
+    
+                    "handler": function (response) {
+                        console.log("Payment succeeded:", response);
+                        paymentFailureHandled = false;
+                        fetch(`http://localhost:8080/verify-payment/${orderID}`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                razorpay_payment_id: response.razorpay_payment_id,
+                                razorpay_order_id: data.order_id,
+                                razorpay_signature: response.razorpay_signature
+                                
+                            })
+                            
+                        })
+                        //console.log(response.razorpay_signature)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.status === "success") {
+                                alert("Payment successful!");
+                            } else {
+                                alert("Payment verification failed.");
+                            }
+                        })
+                        .catch(error => console.error('Error verifying payment:', error));
+                    },
+    
+                    "modal": {
+                        "ondismiss": function () {
+                            console.log("Payment modal dismissed");
+                            handlePaymentFailure("User dismissed the payment or payment failed");
+                        }
+                    }
+                };
+    
+                var rzp1 = new Razorpay(options);
+                rzp1.on('payment.failed', function (response) {
+                    console.log("Payment failed:", response);
+                    handlePaymentFailure("Payment failed due to an issue with Razorpay.");
+                });
+                rzp1.open();
+            })
+            .catch(error => console.error('Error creating order:', error));
+        }
+    
+        function handlePaymentFailure(reason) {
+            if (paymentFailureHandled) return;
+            paymentFailureHandled = true;
+    
+            let orderID = "{{ .orderID }}";  // Ensure this is populated correctly on the server side
+            fetch(`http://localhost:8080/payment-failed/${orderID}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ reason: reason })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === "failed" && data.message.includes("marked as failed")) {
+                    alert("Payment cannot be processed after multiple failed attempts. Please contact support.");
+                    document.getElementById("paymentForm").innerHTML = "<p>Payment cannot be processed after multiple failed attempts.</p>";
+                } else {
+                    alert("Payment failed. Please try again.");
+                }
+            })
+            .catch(error => console.error('Error handling payment failure:', error));
+        }
+    </script>
+    
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+</body>
+</html>

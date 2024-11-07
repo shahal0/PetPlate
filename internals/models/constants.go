@@ -14,6 +14,12 @@ const (
 	Shipped     			   ="shipped"
 	Delivered   			   ="delivered"
 	Success 				   = "paid"
+	RayzorPay 					="RayzorPay"
+	COD							="COD"
+	Wallet 						="wallet"
+	PaymentPending				="pending"
+	OrderPaid					="payment successfull"
+	PaymentFailed				="payment failed"
 
 
 )

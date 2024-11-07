@@ -34,7 +34,10 @@ type CartProduct struct {
 type OrderResponse struct {
 	OrderID   uint      `json:"order_id"`
 	OrderDate time.Time `json:"order_date"`
-	TotalAmount  float64 `json:"total_amount"`
+	RawAmount  float64 `json:"raw_amount"`
+	OfferTotal float64 `json:"total" gorm:"column:total"`
+	DiscountPrice  float64 `json:"discount_price"`
+	FinalAmount   float64 `json:"final_amount"`
 	ShippingAddress ShippingAddress  `gorm:"type:json" json:"shipping_address"`
 	OrderStatus  string `json:"order_status"`
 	PaymentStatus  string `json:"payment_status"`
@@ -58,11 +61,21 @@ type AdminOrderResponse struct {
 	UserName       string `json:"user_name"`
 	OrderID   uint      `json:"order_id"`
 	OrderDate time.Time `json:"order_date"`
-	TotalAmount  float64 `json:"total_amount"`
+	OfferTotal float64 `json:"total" gorm:"column:total"`
+	DiscountPrice  float64 `json:"discount_price"`
+	FinalAmount   float64 `json:"final_amount"`
 	ShippingAddress ShippingAddress  `gorm:"type:json" json:"shipping_address"`
 	OrderStatus  string `json:"order_status"`
 	PaymentStatus  string `json:"payment_status"`
 	PaymentMethod   string `json:"payment_method"`
 	Items         []OrderItemResponse `json:"items"`
+}
+type ResponseWhishlist struct{
+	ProductID uint `json:"product_id"`
+	ProductName string `json:"product_name"`
+	ProductImage string `json:"product_image"`
+	ProductDescription string `json:"product_description"`
+	ProductPrice float64 `json:"product_price"`
+	OfferPrice  float64 `json:"offer_price"`
 }
 

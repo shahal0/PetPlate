@@ -41,6 +41,10 @@ func AutoMigrate() {
 		&models.Order{},
 		&models.OrderItem{},
 		&models.Rating{},
+		&models.Coupon{},
+		&models.CouponUsage{},
+		&models.Whishlist{},
+		&models.Payment{},
 
 	)
 	if err != nil {
