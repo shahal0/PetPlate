@@ -16,8 +16,6 @@ func SearchProduct(c *gin.Context){
 	sortBy:=c.Query("sort_by")
 
 	var products []models.Product
-	var rating []models.Rating
-	qry:=database.DB.Model(&rating)
 	Query:=database.DB.Model(&products)
 	Query=Query.Where("category_id=? AND max_stock>0",category_id,).Find(&products)
 	switch(sortBy){
@@ -29,15 +27,13 @@ func SearchProduct(c *gin.Context){
 		Query.Order("created_at desc")
 	case "alphabetic":
 	 Query.Order("Lower(name) ASC")
-	case "popularity":
-		qry.Order("rating desc")	
+	 default :
+	 	Query.Order("created_at desc")
+	
 	}
-	if err:=Query.Find(&products).Error;err!=nil{
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "failed", "message": err.Error()})
-	}
+	Query.Find(&products)
 	c.JSON(http.StatusOK,gin.H{
 		"status": "success",
 		"data": products,
 	})
-
 }
