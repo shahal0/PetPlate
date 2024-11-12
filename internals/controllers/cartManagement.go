@@ -285,7 +285,7 @@ func DeleteFromCart(c *gin.Context){
     }
     productId := uint(parsedID)
 	var cartt models.Cart
-	if err:=database.DB.Delete(&cartt,productId).Error;err!=nil{
+	if err:=database.DB.Where("product_id=?",productId).Delete(&cartt).Error;err!=nil{
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "failed",
 			"message": "Failed to delete product from cart",

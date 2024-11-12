@@ -20,6 +20,7 @@ const (
 	PaymentPending				="pending"
 	OrderPaid					="payment successfull"
 	PaymentFailed				="payment failed"
-
+	PointThree					=0.3
+	Return   					="return"
 
 )

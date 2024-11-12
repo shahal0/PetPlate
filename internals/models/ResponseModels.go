@@ -78,4 +78,30 @@ type ResponseWhishlist struct{
 	ProductPrice float64 `json:"product_price"`
 	OfferPrice  float64 `json:"offer_price"`
 }
+type OrderCount struct {
+	TotalOrder     uint `json:"total_order"`
+	TotalPending   uint `json:"total_pending"`
+	TotalConfirmed uint` json:"total_confirmed"`
+	TotalShipped   uint `json:"total_shipped"`
+	TotalDelivered uint `json:"total_delivered"`
+	TotalCancelled uint `json:"total_cancelled"`
+	TotalReturned  uint `json:"total_returned"`
+}
 
+type AmountInformation struct {
+	TotalAmountBeforeDeduction  float64 `json:"total_amount_before_deduction"`
+	TotalCouponDeduction        float64 `json:"total_coupon_deduction"`
+	//TotalCategoryOfferDeduction float64 `json:"total_category_offer_deduction"`
+	TotalProuctOfferDeduction   float64 `json:"total_product_offer_deduction"`
+	//TotalDeliveryCharges        float64 `json:"total_delivery_charge"`
+	TotalAmountAfterDeduction   float64 `json:"total_amount_after_deduction"`
+}
+type WalletResponse struct{
+	WalletPaymentId string `json:"wallet_payment_id" gorm:"column:wallet_payment_id"`
+	Type string 
+	Amount uint `json:"amount" gorm:"column:amount"`
+	OrderId uint `json:"order_id" gorm:"column:order_id"`
+	TransactionTime time.Time `json:"transaction_time" gorm:"column:transaction_time"`
+	CurrentBalance uint `json:"current_balance" gorm:"column:current_balance"`
+	Reason string `json:"reason" gorm:"column:reason"`
+}

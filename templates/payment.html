@@ -84,7 +84,7 @@
                     "currency": data.currency,
                     "name": "Petplate",
                     "description": "Razorpay",
-                    "order_id": data.order_id,
+                    "order_id":data.order_id,
     
                     "handler": function (response) {
                         console.log("Payment succeeded:", response);
@@ -98,11 +98,8 @@
                                 razorpay_payment_id: response.razorpay_payment_id,
                                 razorpay_order_id: data.order_id,
                                 razorpay_signature: response.razorpay_signature
-                                
                             })
-                            
                         })
-                        //console.log(response.razorpay_signature)
                         .then(response => response.json())
                         .then(data => {
                             if (data.status === "success") {
@@ -113,8 +110,7 @@
                         })
                         .catch(error => console.error('Error verifying payment:', error));
                     },
-    
-                    "modal": {
+                 "modal": {
                         "ondismiss": function () {
                             console.log("Payment modal dismissed");
                             handlePaymentFailure("User dismissed the payment or payment failed");

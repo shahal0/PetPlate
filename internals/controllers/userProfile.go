@@ -21,7 +21,7 @@ func GetUserProfile(c *gin.Context) {
 		})
 		return
 	}
-	_, ok := email.(string)
+	emailStr, ok := email.(string)
 	if !ok {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "failed",
@@ -31,10 +31,11 @@ func GetUserProfile(c *gin.Context) {
 	}
 	// Check user info and save it into the struct
 	var UserProfile models.User
-	if err := database.DB.Find(&UserProfile).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
+	if err := database.DB.Where("email = ?", emailStr).First(&UserProfile).Error; err != nil {
+		log.Printf("User not found: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "failed",
-			"message": "failed to retrieve data from the database, or the data doesn't exist",
+			"message": "User not found",
 		})
 		return
 	}
@@ -51,7 +52,7 @@ func GetUserProfile(c *gin.Context) {
 			"picture":       UserProfile.Picture,
 			"login_method":  UserProfile.LoginMethod,
 			"blocked":       UserProfile.Blocked,
-			//"wallet_amount": UserProfile.WalletAmount,
+			"Wallet_amount":UserProfile.WalletAmount,
 		},
 	})
 }
@@ -212,4 +213,46 @@ func ChangePassword(c *gin.Context) {
         "status":  "success",
         "message": "Password changed successfully",
     })
+}
+func WalletHistory(c *gin.Context){
+	email, exist := c.Get("email")
+    if !exist {
+        c.JSON(http.StatusUnauthorized, gin.H{
+            "status":  "failed",
+            "message": "Unauthorized or invalid token",
+        })
+        return
+    }
+
+    _, ok := email.(string)
+	if !ok {
+		log.Print("errror   ")
+	}
+	var wh []models.UserWallet
+	if err:=database.DB.Model(&models.UserWallet{}).Find(&wh).Error;err!=nil{
+		log.Printf("Failed to fetch wallet history: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":"failed",
+			"message":"failed to fetch wallet informations",
+		})
+		return
+	}
+	var wr []models.WalletResponse
+	for _, wallet := range wh {
+
+		wr=append(wr,models.WalletResponse{
+			Amount:wallet.Amount,
+			WalletPaymentId: wallet.WalletPaymentId,
+			Type: wallet.TypeOfPayment,
+			OrderId: wallet.OrderId,
+			TransactionTime: wallet.TransactionTime,
+			CurrentBalance: wallet.CurrentBalance,
+			Reason: wallet.Reason,
+		})
+	}
+	c.JSON(http.StatusOK,gin.H{
+		"status":"success",
+		"data":wr,
+	})
+
 }

@@ -8,7 +8,10 @@ require (
 	github.com/wagslane/go-password-validator v0.3.0
 )
 
-require github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
+require (
+	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
+	github.com/jung-kurt/gofpdf/v2 v2.17.3 // indirect
+)
 
 require (
 	cloud.google.com/go/auth v0.9.8 // indirect
