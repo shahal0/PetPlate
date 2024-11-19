@@ -66,6 +66,8 @@ func InitRoutes(router *gin.Engine) {
 	{
 		salesGroup.GET("/get",controllers.SalesReport)
 		salesGroup.GET("/download",controllers.DownloadSalesReportPDF)
+		salesGroup.GET("/BestSellingproduct",controllers.BestSellingProduct)
+		salesGroup.GET("/BestSellingcategory",controllers.BestsellingCategory)
 	}
 	ProductGroup := router.Group("/admin/products")
 	ProductGroup.Use(middlewares.AuthMiddleware("admin"))
@@ -121,6 +123,7 @@ func InitRoutes(router *gin.Engine) {
 		OrderGroup.PUT("/product/rating", controllers.ProductRating)
 		OrderGroup.GET("/product/search", controllers.SearchProduct)
 		OrderGroup.PATCH("/product/return",controllers.ReturnOrder)
+		OrderGroup.GET("/invoice",controllers.Invoice)
 	}
 	WhislistGroup := router.Group("/user/whishlist")
 	WhislistGroup.Use(middlewares.AuthMiddleware("user"))

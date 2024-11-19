@@ -3,12 +3,11 @@ package utils
 import (
 	"errors"
 	"fmt"
-	"net/http"
 	"petplate/internals/database"
 	"petplate/internals/models"
 	"time"
 
-	"github.com/gin-gonic/gin"
+	
 	
 )
 
@@ -31,7 +30,7 @@ func Itercart(ucart []models.Cart)(float64,float64){
 			// 	"status":"failed",
 			// 	"message":err.Error(),
 			// 	})
-				// return
+				 return 0,0
 		}
 		
 
@@ -62,14 +61,14 @@ func Itercart(ucart []models.Cart)(float64,float64){
 	}
 	return TotalAmount,RawAmount
 }
-func CartToOrderItem(c gin.Context,ucart []models.Cart,orderid uint)error{
+func CartToOrderItem(ucart []models.Cart,orderid uint)error{
 	for _,cartitem:=range ucart{
 		var prod  models.Product
 		if err:=database.DB.Where("product_id=?",cartitem.ProductID).First(&prod).Error;err!=nil{
-			c.JSON(http.StatusInternalServerError,gin.H{
-				"status":"failed",
-				"message":err.Error(),
-				})
+			// c.JSON(http.StatusInternalServerError,gin.H{
+			// 	"status":"failed",
+			// 	"message":err.Error(),
+			// 	})
 				return err
 		}
 		amount:=prod.OfferPrice*float64(cartitem.Quantity)
@@ -82,10 +81,10 @@ func CartToOrderItem(c gin.Context,ucart []models.Cart,orderid uint)error{
 			OrderStatus: models.Pending ,
 		}
 		if err:=database.DB.Create(&orditems).Error;err!=nil{
-			c.JSON(http.StatusBadRequest,gin.H{
-				"status":  "failed",
-				"message": err.Error(),
-				})
+			// c.JSON(http.StatusBadRequest,gin.H{
+			// 	"status":  "failed",
+			// 	"message": err.Error(),
+			// 	})
 				return err
 		}
 		prod.MaxStock-=cartitem.Quantity	
@@ -133,11 +132,9 @@ func CancelOrderItem(orderID, productID uint) (float64,error,float64) {
 		if err:=database.DB.Model(&coup).Where("code=?",order.CouponCode).First(&coup).Error;err!=nil{
 			return 0,fmt.Errorf("failed to retrieve coupon items: %w", err),0
 		}
-		cancelprice=ordItem.Price-(ordItem.Price-(ordItem.Price*(coup.DiscountPercentage/100)))
+		cancelprice=ordItem.Price-(ordItem.Price*(coup.DiscountPercentage/100))
 	}
 	cancelprice=ordItem.Price
-	
-	
 	// Recalculate the total for remaining non-cancelled items
 	var remainingItems []models.OrderItem
 	if err := database.DB.Where("order_id = ? AND order_status != ?", orderID, models.Cancelled).Find(&remainingItems).Error; err != nil {
@@ -146,8 +143,12 @@ func CancelOrderItem(orderID, productID uint) (float64,error,float64) {
 
 	// Calculate the new total
 	newTotal := 0.0
+	rawtotal:=0.0
 	for _, item := range remainingItems {
 		newTotal += item.Price
+		var product models.Product
+		database.DB.Model(&models.Product{}).Where("product_id=?",item.ProductID).First(&product)
+		rawtotal+=product.Price*float64(item.Quantity)
 	}
 	
 
@@ -156,11 +157,17 @@ func CancelOrderItem(orderID, productID uint) (float64,error,float64) {
 		return 0,fmt.Errorf("failed to update order total: %w", err),0
 	}
 	price:=order.FinalAmount
+	if err:=database.DB.Model(&order).Where("order_id=?",orderID).Update("raw_amount",rawtotal).Error;err!=nil{
+		return 0,fmt.Errorf("failed to update order total: %w", err),0
+	}
 	// balance:=order.FinalAmount-cancelprice
 	// if err:=database.DB.Model(&order).Where("order_id=?",orderID).Update("final_amount",balance).Error;err!=nil{
 	// 	return 0,fmt.Errorf("failed to retrieve remaining order items: %w", err)
 	// }
-
+	newfinal:=order.FinalAmount-cancelprice
+	if err:=database.DB.Model(&order).Where("order_id=?",orderID).Update("final_amount",newfinal).Error;err!=nil{
+		return 0,fmt.Errorf("failed to update order total: %w", err),0
+	}
 
 	return cancelprice,nil,price
 }

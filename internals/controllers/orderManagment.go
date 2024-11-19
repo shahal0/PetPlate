@@ -143,6 +143,10 @@ func PlaceOrder(c *gin.Context) {
 	if discount>coup.MaximumDiscountAmount{
 		discount=coup.MaximumDiscountAmount
 	}
+	delivery:=0
+	if final<=1000{
+		delivery=50
+	}
 	order := models.Order{
 		UserID:         userid,
 		OrderDate:      time.Now(),
@@ -150,7 +154,8 @@ func PlaceOrder(c *gin.Context) {
 		OfferTotal:     TotalAmount,
 		CouponCode:     couponcode,
 		DiscountAmount: discount,
-		FinalAmount:    final,
+		DeliveryCharge: float64(delivery),
+		FinalAmount:    final+float64(delivery),
 		PaymentMethod:  paymentMethod,
 		PaymentStatus:  models.Pending,
 		OrderStatus:    models.Pending,
@@ -170,7 +175,14 @@ func PlaceOrder(c *gin.Context) {
 		})
 		return
 	}
-	err:=utils.CartToOrderItem(*c , ucart,order.OrderID )
+	if req.PaymentMethod==1&&order.FinalAmount>1000{
+		c.JSON(http.StatusBadRequest,gin.H{
+			"status":"failed",
+			"message": "order above 1000 is not allowed for COD",
+		})
+		return
+	}
+	err:=utils.CartToOrderItem( ucart,order.OrderID )
 	if err!=nil{
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "failed",
@@ -277,9 +289,10 @@ func UserSeeOrders(c *gin.Context) {
 				ImageURL:    prodct.ImageURL,
 				CategoryId:  prodct.CategoryID,
 				Description: prodct.Description,
-				Price:       prodct.OfferPrice,
+				Price:       prodct.Price,
+				FinalAmount: prodct.OfferPrice,
 				Quantity:    ordItem.Quantity,
-				TotalPrice:  float64(ordItem.Quantity) * prodct.OfferPrice,
+				TotalPrice:  RoundDecimalValue(float64(ordItem.Quantity) * prodct.OfferPrice),
 				OrderStatus: ordItem.OrderStatus,
 			})
 		}
@@ -288,8 +301,8 @@ func UserSeeOrders(c *gin.Context) {
 			OrderDate:       ords.OrderDate,
 			RawAmount:       ords.RawAmount,
 			OfferTotal:      ords.OfferTotal,
-			DiscountPrice:   ords.DiscountAmount,
-			FinalAmount:     ords.FinalAmount,
+			DiscountPrice:   RoundDecimalValue(ords.DiscountAmount),
+			FinalAmount:     RoundDecimalValue(ords.FinalAmount),
 			ShippingAddress: ords.ShippingAddress,
 			OrderStatus:     ords.OrderStatus,
 			PaymentStatus:   ords.PaymentStatus,
@@ -322,7 +335,7 @@ func UserCancelOrder(c *gin.Context) {
 		return
 	}
 	userid, ok := utils.GetUserIDByEmail(emailval)
-	ordid := c.Query("id")
+	ordid := c.Query("order_id")
 	if ordid == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "failed", "message": "Order ID is required"})
 		return
@@ -400,7 +413,7 @@ func CancelItemFromUserOrders(c *gin.Context) {
 		return
 	}
 	userid, ok := utils.GetUserIDByEmail(emailval)
-	ordid := c.Query("id")
+	ordid := c.Query("order_id")
 	prodid := c.Query("productid")
 	if ordid == "" || prodid == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "failed", "message": "Order ID and Product ID are required"})
@@ -425,6 +438,13 @@ func CancelItemFromUserOrders(c *gin.Context) {
 		c.JSON(http.StatusBadRequest,gin.H{
 			"status":  "failed",
 			"message": "the item is already cancelled",
+		})
+		return
+	}
+	if cancelprice==0{
+		c.JSON(http.StatusBadRequest,gin.H{
+			"status":  "failed",
+			"message": "the item is not delivered yet",
 		})
 		return
 	}
@@ -568,7 +588,7 @@ func AdminCancelOrder(c *gin.Context) {
 		return
 	}
 
-	ordid := c.Query("id")
+	ordid := c.Query("order_id")
 	if ordid == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "failed", "message": "Order ID is required"})
 		return
@@ -602,7 +622,7 @@ func AdminCancelOrder(c *gin.Context) {
 }
 
 func CancelItemFromAdminOrders(c *gin.Context) {
-	ordid := c.Query("id")
+	ordid := c.Query("order_id")
 	prodid := c.Query("productid")
 	if ordid == "" || prodid == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "failed", "message": "Order ID and Product ID are required"})
@@ -642,7 +662,7 @@ func UpdateOrderstatus(c *gin.Context) {
 	}
 
 	// Retrieve order ID from query parameter
-	ordid := c.Query("id")
+	ordid := c.Query("order_id")
 	if ordid == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "failed", "message": "Order ID is required"})
 		return
@@ -788,7 +808,7 @@ func ReturnOrder(c *gin.Context){
 			"status":  "failed",
 			"message": "You can't return this product",
 			})
-			
+			return
 	}
 	var user models.User
 	if err:=database.DB.Where("id=?",userid).First(&user).Error;err!=nil{

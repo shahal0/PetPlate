@@ -220,7 +220,8 @@ func ListCart(c *gin.Context){
 			Name:product.Name,
 			Description:product.Description,
 			CategoryID:product.CategoryID,
-			Price  :product.OfferPrice,
+			Price  :product.Price,
+			FinalPrice: product.OfferPrice,
 			Quantity: cartitem.Quantity,
 			ImageURL :product.ImageURL,
 		}
@@ -244,7 +245,7 @@ func ListCart(c *gin.Context){
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "success",
 		"data":    responseCarts,
-		"CartAmount":TotalAmount,
+		"CartAmount":RoundDecimalValue(TotalAmount),
 		"message":message,
 	})
 	}

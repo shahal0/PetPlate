@@ -44,6 +44,17 @@ func CreateOrder(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Order ID is required"})
 		return
 	}
+	// var orderrr models.Order
+	// if err:=database.DB.Where("order_id=?",orderid).First(&orderrr).Error;err!=nil{
+	// 	log.Println(err)
+	// 	c.JSON(http.StatusBadRequest,gin.H{
+	// 		"error": "Order not found",
+	// 	})
+	// }
+	// if orderrr.PaymentMethod!="UPI"{
+	// 	c.JSON(http.StatusBadRequest, gin.H{"error": "Payment method is not UPI"})
+	// 	log.Println("payment method is not UPI")
+	// }
 
 	client := razorpay.NewClient(os.Getenv("RAZORPAY_KEY_ID"), os.Getenv("RAZORPAY_KEY_SECRET"))
 

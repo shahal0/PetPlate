@@ -28,6 +28,7 @@ type CartProduct struct {
 	Description string  `gorm:"column:description" validate:"required" json:"description"`
 	CategoryID  uint    `gorm:"foreignKey:CategoryID" validate:"required" json:"category_id"`
 	Price       float64 `validate:"required,number" json:"price"`
+	FinalPrice float64 `validate:"required,number" json:"final_price"`
 	Quantity    uint    `validate:"required" json:"quantity"`
 	ImageURL    string  `gorm:"column:image_url" validate:"required" json:"image_url"`
 }
@@ -52,6 +53,7 @@ type  OrderItemResponse struct {
 	CategoryId    uint `json:"category_id"`
 	Description    string `json:"description"`
 	Price          float64 `json:"price"`
+	FinalAmount   float64 `json:"final_amount"`
 	Quantity       uint `json:"quantity"`
 	TotalPrice     float64 `json:"total_price"`
 	OrderStatus     string `json:"order_status"`
@@ -104,4 +106,28 @@ type WalletResponse struct{
 	TransactionTime time.Time `json:"transaction_time" gorm:"column:transaction_time"`
 	CurrentBalance uint `json:"current_balance" gorm:"column:current_balance"`
 	Reason string `json:"reason" gorm:"column:reason"`
+}
+type OrderDetails struct {
+	CustomerName    string
+	CustomerAddress ShippingAddress
+	CustomerCity    string
+	OrderDate time.Time
+	Items           []InvoiceItem
+		
+}
+type InvoiceItem struct{
+	Name string `json:"name"`
+	Quantity uint `json:"quantity"`
+	Price float64 `json:"price"`
+}
+type BestSellingProduct struct {
+    ProductID   uint   `json:"product_id"`
+    ProductName string `json:"product_name"`
+    TotalSold   int    `json:"total_sold"`
+}
+
+type BestSellingCategory struct {
+    CategoryID   uint   `json:"category_id"`
+    CategoryName string `json:"category_name"`
+    TotalSold    int    `json:"total_sold"`
 }

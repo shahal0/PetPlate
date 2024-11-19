@@ -6,6 +6,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"os"
 	"petplate/internals/database"
 	"petplate/internals/models"
 	"strconv"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jung-kurt/gofpdf/v2"
+	"github.com/wcharczuk/go-chart"
 )
 func RoundDecimalValue(value float64) float64 {
 	multiplier := math.Pow(10, 2)
@@ -39,8 +41,6 @@ func SalesReport(c *gin.Context) {
 		})
 		return
 	}
-
-	// Handle `limit` as a time range (day, week, month, year)
 	if limit != "" {
 		switch limit {
 		case "day":
@@ -62,8 +62,6 @@ func SalesReport(c *gin.Context) {
 			return
 		}
 	}
-
-	// Call TotalOrders to retrieve results within date range
 	result, amount, err := TotalOrders(startDate, endDate, pStatus)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "error processing orders"})
@@ -110,14 +108,6 @@ func TotalOrders(fromDate string, toDate string, paymentStatus string) (models.O
 		accountInfo.TotalProuctOfferDeduction += order.OfferTotal
 		accountInfo.TotalAmountAfterDeduction += order.FinalAmount
 	}
-
-	// Extract order IDs for status count query
-	// var orderIDs []int64
-	// for _, order := range orders {
-	// 	orderIDs = append(orderIDs, int64(order.OrderID))
-	// }
-
-	// Check if orderIDs is empty
 	if len(orders) == 0 {
 		return models.OrderCount{TotalOrder: 0}, accountInfo, nil
 	}
@@ -203,89 +193,193 @@ func DownloadSalesReportPDF(c *gin.Context) {
 	pdfBytes, err := GenerateSalesReportPDF(orderCount, amountInfo, startDate, endDate, paymentStatus)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate PDF"})
+		log.Println(err)
 		return
 	}
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", "attachment; filename=sales_report.pdf")
 	c.Data(http.StatusOK, "application/pdf", pdfBytes)
 }
-
 func GenerateSalesReportPDF(orderCount models.OrderCount, amountInfo models.AmountInformation, startDate string, endDate string, paymentStatus string) ([]byte, error) {
-	pdf := gofpdf.New("P", "mm", "A4", "")
-	pdf.AddPage()
+    pdf := gofpdf.New("P", "mm", "A4", "")
+    pdf.AddPage()
+    pdf.SetFont("Arial", "B", 20)
+    pdf.CellFormat(0, 10, "Sales Report", "", 1, "C", false, 0, "")
+    pdf.Ln(10)
 
-	// Centered Report Title
-	pdf.SetFont("Arial", "B", 20)
-	pdf.CellFormat(0, 10, "Sales Report", "", 1, "C", false, 0, "")
-	pdf.Ln(10)
+    
+    pdf.SetFont("Arial", "B", 12)
+    pdf.CellFormat(40, 10, "Report Duration:", "", 1, "L", false, 0, "")
+    pdf.SetFont("Arial", "", 12)
+    pdf.CellFormat(40, 10, "Start Date: "+startDate, "", 1, "L", false, 0, "")
+    pdf.CellFormat(40, 10, "End Date: "+endDate, "", 1, "L", false, 0, "")
+    pdf.CellFormat(40, 10, "Payment Status: "+paymentStatus, "", 1, "L", false, 0, "")
+    pdf.Ln(12)
 
-	// Left-Aligned Date & Filter Information (Report Duration)
-	pdf.SetFont("Arial", "B", 12)
-	pdf.CellFormat(40, 10, "Report Duration:", "", 1, "L", false, 0, "")
-	pdf.SetFont("Arial", "", 12)
-	pdf.CellFormat(40, 10, "Start Date: "+startDate, "", 1, "L", false, 0, "")
-	pdf.CellFormat(40, 10, "End Date: "+endDate, "", 1, "L", false, 0, "")
-	pdf.CellFormat(40, 10, "Payment Status: "+paymentStatus, "", 1, "L", false, 0, "")
-	pdf.Ln(12)
 
-	// Section: Summary Information Table
-	pdf.SetFont("Arial", "B", 14)
-	pdf.Cell(0, 10, "Summary Information")
-	pdf.Ln(8)
+    pdf.SetFont("Arial", "B", 14)
+    pdf.Cell(0, 10, "Summary Information")
+    pdf.Ln(8)
 
-	pdf.SetFont("Arial", "B", 12)
-	pdf.CellFormat(90, 10, "Description", "1", 0, "C", false, 0, "")
-	pdf.CellFormat(60, 10, "Amount", "1", 0, "C", false, 0, "")
-	pdf.Ln(-1)
+    pdf.SetFont("Arial", "B", 12)
+    pdf.CellFormat(90, 10, "Description", "1", 0, "C", false, 0, "")
+    pdf.CellFormat(60, 10, "Amount", "1", 0, "C", false, 0, "")
+    pdf.Ln(-1)
 
-	pdf.SetFont("Arial", "", 12)
-	summaryData := map[string]string{
-		"Total Orders":                   strconv.Itoa(int(orderCount.TotalOrder)),
-		"Total Amount Before Deduction":  fmt.Sprintf("%.2f", amountInfo.TotalAmountBeforeDeduction),
-		"Total Coupon Deduction":         fmt.Sprintf("%.2f", amountInfo.TotalCouponDeduction),
-		"Total Product Offer Deduction":  fmt.Sprintf("%.2f", amountInfo.TotalProuctOfferDeduction),
-		"Total Amount After Deduction":   fmt.Sprintf("%.2f", amountInfo.TotalAmountAfterDeduction),
+    pdf.SetFont("Arial", "", 12)
+    summaryData := map[string]string{
+        "Total Orders":                   strconv.Itoa(int(orderCount.TotalOrder)),
+        "Total Amount Before Deduction":  fmt.Sprintf("%.2f", amountInfo.TotalAmountBeforeDeduction),
+        "Total Coupon Deduction":         fmt.Sprintf("%.2f", amountInfo.TotalCouponDeduction),
+        "Total Product Offer Deduction":  fmt.Sprintf("%.2f", amountInfo.TotalProuctOfferDeduction),
+        "Total Amount After Deduction":   fmt.Sprintf("%.2f", amountInfo.TotalAmountAfterDeduction),
+    }
+
+    for desc, amount := range summaryData {
+        pdf.CellFormat(90, 10, desc, "1", 0, "L", false, 0, "")
+        pdf.CellFormat(60, 10, amount, "1", 0, "R", false, 0, "")
+        pdf.Ln(-1)
+    }
+    pdf.Ln(10)
+
+    // Order History Table
+    pdf.SetFont("Arial", "B", 14)
+    pdf.Cell(0, 10, "Order History Details")
+    pdf.Ln(8)
+
+    pdf.SetFont("Arial", "B", 12)
+    pdf.CellFormat(60, 10, "Status", "1", 0, "C", false, 0, "")
+    pdf.CellFormat(60, 10, "Count", "1", 0, "C", false, 0, "")
+    pdf.Ln(-1)
+
+    pdf.SetFont("Arial", "", 12)
+    orderHistory := map[string]int{
+        "Pending":   int(orderCount.TotalPending),
+        "Confirmed": int(orderCount.TotalConfirmed),
+        "Shipped":   int(orderCount.TotalShipped),
+        "Delivered": int(orderCount.TotalDelivered),
+        "Cancelled": int(orderCount.TotalCancelled),
+        "Returned":  int(orderCount.TotalReturned),
+    }
+
+    for status, count := range orderHistory {
+        pdf.CellFormat(60, 10, status, "1", 0, "L", false, 0, "")
+        pdf.CellFormat(60, 10, strconv.Itoa(count), "1", 0, "R", false, 0, "")
+        pdf.Ln(-1)
+    }
+    pdf.Ln(10)
+
+    // Prepare Chart Data
+    chartData := []chart.Value{
+        {Value: float64(orderCount.TotalPending), Label: "Pending"},
+        {Value: float64(orderCount.TotalConfirmed), Label: "Confirmed"},
+        {Value: float64(orderCount.TotalShipped), Label: "Shipped"},
+        {Value: float64(orderCount.TotalDelivered), Label: "Delivered"},
+        {Value: float64(orderCount.TotalCancelled), Label: "Cancelled"},
+        {Value: float64(orderCount.TotalReturned), Label: "Returned"},
+    }
+
+    // Debug chart data
+    log.Printf("Chart Data: %+v", chartData)
+
+    // Validate Chart Data
+    validData := false
+    for _, data := range chartData {
+        if data.Value > 0 {
+            validData = true
+            break
+        }
+    }
+
+    if validData {
+        // Create bar chart
+        barChart := chart.BarChart{
+            Width:  500,
+            Height: 300,
+            Bars:   chartData,
+            XAxis: chart.Style{
+                Show: true,
+            },
+            YAxis: chart.YAxis{
+                Style: chart.Style{
+                    Show: true,
+                },
+                Range: &chart.ContinuousRange{
+                    Min: 0,
+                    Max: float64(orderCount.TotalOrder),
+                },
+            },
+        }
+
+        var chartBuffer bytes.Buffer
+        err := barChart.Render(chart.PNG, &chartBuffer)
+        if err != nil {
+            return nil, fmt.Errorf("failed to generate bar chart: %v", err)
+        }
+
+        chartFileName := "temp_chart.png"
+        err = os.WriteFile(chartFileName, chartBuffer.Bytes(), 0644)
+        if err != nil {
+            return nil, fmt.Errorf("failed to save chart image: %v", err)
+        }
+        defer os.Remove(chartFileName)
+
+
+		tableWidth := 90 + 60
+	pageWidth, pageHeight := pdf.GetPageSize()
+
+	
+	chartWidth := float64(tableWidth) / 1.4
+	chartHeight := chartWidth / 1.5 
+	remainingHeight := pageHeight - pdf.GetY() - 10 
+	if chartHeight > remainingHeight {
+		pdf.AddPage() 
+		pdf.Ln(5)     
 	}
+		// Add heading for the bar chart
+	pdf.SetFont("Arial", "B", 14) 
+	pdf.CellFormat(0, 10, "Order Status Distribution", "", 1, "C", false, 0, "")
+	pdf.Ln(5) 
 
-	for desc, amount := range summaryData {
-		pdf.CellFormat(90, 10, desc, "1", 0, "L", false, 0, "")
-		pdf.CellFormat(60, 10, amount, "1", 0, "R", false, 0, "")
-		pdf.Ln(-1)
-	}
-	pdf.Ln(10)
 
-	// Section: Order Status Summary Table
-	pdf.SetFont("Arial", "B", 14)
-	pdf.Cell(0, 10, "Order Status Summary")
-	pdf.Ln(8)
+	// Center the chart horizontally on the page
+	chartX := (pageWidth - chartWidth) / 2
+	chartY := pdf.GetY() + 2
 
-	pdf.SetFont("Arial", "B", 12)
-	pdf.CellFormat(90, 10, "Order Status", "1", 0, "C", false, 0, "")
-	pdf.CellFormat(60, 10, "Total Count", "1", 0, "C", false, 0, "")
-	pdf.Ln(-1)
+	// Place the chart
+	pdf.ImageOptions(
+		chartFileName,
+		chartX,
+		chartY,
+		chartWidth,
+		chartHeight,
+		false,
+		gofpdf.ImageOptions{ImageType: "PNG"},
+		0,
+		"",
+	)
+	pdf.SetY(chartY + chartHeight + 2)
 
-	pdf.SetFont("Arial", "", 12)
-	orderStatuses := map[string]uint{
-		"Pending Orders":   orderCount.TotalPending,
-		"Confirmed Orders": orderCount.TotalConfirmed,
-		"Shipped Orders":   orderCount.TotalShipped,
-		"Delivered Orders": orderCount.TotalDelivered,
-		"Cancelled Orders": orderCount.TotalCancelled,
-		"Returned Orders":  orderCount.TotalReturned,
-	}
 
-	for status, count := range orderStatuses {
-		pdf.CellFormat(90, 10, status, "1", 0, "L", false, 0, "")
-		pdf.CellFormat(60, 10, strconv.Itoa(int(count)), "1", 0, "C", false, 0, "")
-		pdf.Ln(-1)
-	}
+    } else {
+        pdf.SetFont("Arial", "I", 12)
+        pdf.CellFormat(0, 10, "No data available for chart representation.", "", 1, "C", false, 0, "")
+        pdf.Ln(10)
+    }
 
-	// Generate PDF output
-	var buf bytes.Buffer
-	err := pdf.Output(&buf)
-	if err != nil {
-		return nil, err
-	}
+    // Generate the PDF output
+    var buf bytes.Buffer
+    err := pdf.Output(&buf)
+    if err != nil {
+        return nil, fmt.Errorf("error generating PDF: %v", err)
+    }
 
-	return buf.Bytes(), nil
+    return buf.Bytes(), nil
 }
+
+
+
+
+
+
+

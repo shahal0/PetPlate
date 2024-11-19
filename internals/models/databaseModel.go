@@ -91,6 +91,7 @@ type Order  struct{
 	OfferTotal float64 `json:"total" gorm:"column:total"`
 	CouponCode	string  `json:"coupon_code" gorm:"column:coupon_code"`
 	DiscountAmount  float64 `json:"discount_amount" gorm:"column:discount_amount"`
+	DeliveryCharge float64 `json:"delivery_charge" gorm:"column:delivery_charge"`
 	FinalAmount  float64 `json:"final_amount" gorm:"column:final_amount"`
 	PaymentMethod  string  `json:"payment_method" gorm:"column:payment_method"`
 	ShippingAddress ShippingAddress `gorm:"embedded" json:"shipping_address"`
