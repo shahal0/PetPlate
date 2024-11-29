@@ -3,12 +3,10 @@ package utils
 import (
 	"errors"
 	"fmt"
+	//"log"
 	"petplate/internals/database"
 	"petplate/internals/models"
 	"time"
-
-	
-	
 )
 
 // GetUserIDByEmail retrieves the user ID based on the provided email address.
@@ -128,14 +126,9 @@ func CancelOrderItem(orderID, productID uint) (float64,error,float64) {
 		return 0,fmt.Errorf("failed to update order item status: %w", err),0
 	}
 	var coup models.Coupon
-	if order.CouponCode!=""{
-		if err:=database.DB.Model(&coup).Where("code=?",order.CouponCode).First(&coup).Error;err!=nil{
-			return 0,fmt.Errorf("failed to retrieve coupon items: %w", err),0
-		}
-		cancelprice=ordItem.Price-(ordItem.Price*(coup.DiscountPercentage/100))
-	}
-	cancelprice=ordItem.Price
-	// Recalculate the total for remaining non-cancelled items
+	database.DB.Model(&coup).Where("code=?",order.CouponCode).First(&coup)
+			
+	cancelprice=ordItem.Price-(ordItem.Price*(coup.DiscountPercentage/100))
 	var remainingItems []models.OrderItem
 	if err := database.DB.Where("order_id = ? AND order_status != ?", orderID, models.Cancelled).Find(&remainingItems).Error; err != nil {
 		return 0,fmt.Errorf("failed to retrieve remaining order items: %w", err),0
@@ -151,7 +144,9 @@ func CancelOrderItem(orderID, productID uint) (float64,error,float64) {
 		rawtotal+=product.Price*float64(item.Quantity)
 	}
 	
-
+	if newTotal<0{
+		newTotal=0
+	}
 	// Update the order total
 	if err := database.DB.Model(&models.Order{}).Where("order_id = ?", orderID).Update("total", newTotal).Error; err != nil {
 		return 0,fmt.Errorf("failed to update order total: %w", err),0
@@ -168,6 +163,9 @@ func CancelOrderItem(orderID, productID uint) (float64,error,float64) {
 	if err:=database.DB.Model(&order).Where("order_id=?",orderID).Update("final_amount",newfinal).Error;err!=nil{
 		return 0,fmt.Errorf("failed to update order total: %w", err),0
 	}
+	// if price==0{
+	// 	if err:=database.DB.Where("order_id=?",orderID).Update()
+	// }
 
 	return cancelprice,nil,price
 }
@@ -181,30 +179,22 @@ func FetchOrderDetails(orderid string)(models.Order,error){
 func Distercart(ucart []models.Cart,coup models.Coupon)(float64,float64){
 	//var orderitems[]models.OrderItem
 	var TotalAmount,amount float64
-	// var RawAmount float64
 	var disamount float64
 	for _,cartitem:=range ucart{
 		var prod  models.Product
-		if err:=database.DB.Where("product_id=?",cartitem.ProductID).First(&prod).Error;err!=nil{
-			// c.JSON(http.StatusInternalServerError,gin.H{
-			// 	"status":"failed",
-			// 	"message":err.Error(),
-			// 	})
-				// return
-		}
+		database.DB.Where("product_id=?",cartitem.ProductID).First(&prod)
 		
 
 		amount+=prod.OfferPrice*float64(cartitem.Quantity)
 		// ramount:=prod.Price*float64(cartitem.Quantity)
-		discount:=amount*(coup.DiscountPercentage/100)
-		// RawAmount+=ramount
-		disamount+=discount
+		
 			
 	}
+	disamount=amount*(coup.DiscountPercentage/100)
 	if disamount>coup.MaximumDiscountAmount{
 		disamount=coup.MaximumDiscountAmount
 	}
-	TotalAmount+=amount-disamount
+	TotalAmount=amount-disamount
 	return TotalAmount,disamount
 }
 func WalletPayment(userid,orderid uint)error{
@@ -305,4 +295,40 @@ func ReturnOrderItem(orderID, productID uint) (float64,error) {
 
 
 	return cancelprice,nil
+}
+func WalletPaymentBooking(userid,orderid uint)error{
+	var user models.User
+	if err:=database.DB.Where("id=?",userid).First(&user).Error;err!=nil{
+		return fmt.Errorf(err.Error())
+	}
+	var order models.Booking
+	if err:=database.DB.Where("booking_id=?",orderid).First(&order).Error;err!=nil{
+		return fmt.Errorf(err.Error())
+	}
+	if order.Amount>user.WalletAmount{
+		return errors.New("insufficient wallet amount")
+	}
+	updatedval:=user.WalletAmount-order.Amount
+	if err:=database.DB.Model(&user).Update("wallet_amount",updatedval).Error;err!=nil{
+		return err
+	}
+	if err:=database.DB.Model(&order).Update("payment_status",models.Success).Error;err!=nil{
+		return err
+	}
+	walletTransaction:=models.UserWallet{
+		UserID:userid,
+		Amount:uint(order.Amount),
+		OrderId: orderid,
+		WalletPaymentId: fmt.Sprintf("WALLET_%d", time.Now().Unix()),
+		TypeOfPayment: "outgoing",
+		TransactionTime: time.Now(),
+		CurrentBalance: uint(user.WalletAmount),
+		Reason: "Booking",
+	}
+	if err:=database.DB.Create(&walletTransaction).Error;err!=nil{
+		//c.JSON(http.StatusInternalServerError, gin.H{"status": "failed", "message": err.Error()})
+		return err
+	}
+	
+	return nil
 }

@@ -93,3 +93,9 @@ type CouponRequest struct{
 type WhislistRequest struct {
 	ProductID uint `json:"product_id" gorm:"column:product_id"`
 }
+type BookingRequest struct{
+	TimeSlot string `json:"time_slot" validate:"required"`
+	ServiceId uint `json:"service_id" validate:"required"`
+	Date string `json:"date" validate:"required"`
+	PaymentMethod uint `json:"payment_method" validate:"required"`
+}

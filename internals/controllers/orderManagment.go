@@ -1,10 +1,7 @@
 package controllers
 
 import (
-	// "errors"
-	//"log"
 	"fmt"
-	"log"
 	"net/http"
 	"petplate/internals/database"
 	"petplate/internals/models"
@@ -121,7 +118,6 @@ func PlaceOrder(c *gin.Context) {
 			})
 			return
 		}
-		log.Println("total amount", TotalAmount)
 		if TotalAmount < coup.MinimumPurchase {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"status":  "failed",
@@ -254,17 +250,16 @@ func UserSeeOrders(c *gin.Context) {
 		return
 	}
 	var ord []models.Order
-	if err := database.DB.Where("user_id", userid).Find(&ord).Error; err != nil {
+	if err := database.DB.Model(&models.Order{}).Where("user_id=?",userid).Order("order_id desc").Find(&ord).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "failed",
-			"message": err.Error(),
+			"message": "Failed to retrieve orders",
 		})
 		return
 	}
-	var ordItems []models.OrderItem
 	var ordresponse []models.OrderResponse
-
 	for _, ords := range ord {
+		var ordItems []models.OrderItem
 		if err := database.DB.Where("order_id", ords.OrderID).Find(&ordItems).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "failed",
@@ -299,10 +294,11 @@ func UserSeeOrders(c *gin.Context) {
 		ordresponse = append(ordresponse, models.OrderResponse{
 			OrderID:         ords.OrderID,
 			OrderDate:       ords.OrderDate,
-			RawAmount:       ords.RawAmount,
+			SubtotalAmount:       ords.RawAmount,
 			OfferTotal:      ords.OfferTotal,
-			DiscountPrice:   RoundDecimalValue(ords.DiscountAmount),
-			FinalAmount:     RoundDecimalValue(ords.FinalAmount),
+			DiscountAmount:   RoundDecimalValue(ords.DiscountAmount),
+			ShippingCharge: ords.DeliveryCharge,
+			TotalPayable:     RoundDecimalValue(ords.FinalAmount),
 			ShippingAddress: ords.ShippingAddress,
 			OrderStatus:     ords.OrderStatus,
 			PaymentStatus:   ords.PaymentStatus,
@@ -334,7 +330,7 @@ func UserCancelOrder(c *gin.Context) {
 		})
 		return
 	}
-	userid, ok := utils.GetUserIDByEmail(emailval)
+	userid, _ := utils.GetUserIDByEmail(emailval)
 	ordid := c.Query("order_id")
 	if ordid == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "failed", "message": "Order ID is required"})
@@ -412,7 +408,7 @@ func CancelItemFromUserOrders(c *gin.Context) {
 		})
 		return
 	}
-	userid, ok := utils.GetUserIDByEmail(emailval)
+	userid, _ := utils.GetUserIDByEmail(emailval)
 	ordid := c.Query("order_id")
 	prodid := c.Query("productid")
 	if ordid == "" || prodid == "" {
@@ -481,21 +477,27 @@ func CancelItemFromUserOrders(c *gin.Context) {
 	if flag==len(orditems){
 		database.DB.Model(&models.Order{}).Where("order_id=?",ordid).Update("order_status",models.Cancelled)
 	}
-	walletTransaction:=models.UserWallet{
-		UserID:userid,
-		Amount:uint(cancelprice),
-		OrderId: uint(parsedOrderID),
-		WalletPaymentId: fmt.Sprintf("WALLET_%d", time.Now().Unix()),
-		TypeOfPayment: "incoming",
-		TransactionTime: time.Now(),
-		CurrentBalance: uint(user.WalletAmount),
-		Reason: "cancel",
-	}
-	if err:=database.DB.Create(&walletTransaction).Error;err!=nil{
+	var order models.Order
+	if err:=database.DB.Where("order_id=?",ordid).First(&order).Error;err!=nil{
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "failed", "message": err.Error()})
 		return
 	}
-
+	if order.PaymentStatus==models.Success{
+		walletTransaction:=models.UserWallet{
+			UserID:userid,
+			Amount:uint(cancelprice),
+			OrderId: uint(parsedOrderID),
+			WalletPaymentId: fmt.Sprintf("WALLET_%d", time.Now().Unix()),
+			TypeOfPayment: "incoming",
+			TransactionTime: time.Now(),
+			CurrentBalance: uint(user.WalletAmount),
+			Reason: "cancel",
+		}
+		if err:=database.DB.Create(&walletTransaction).Error;err!=nil{
+			c.JSON(http.StatusInternalServerError, gin.H{"status": "failed", "message": err.Error()})
+			return
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Order item cancelled and order total updated successfully"})
 }
 func AdminOrderList(c *gin.Context) {
@@ -696,7 +698,6 @@ func UpdateOrderstatus(c *gin.Context) {
 
 	// Check if order is already cancelled
 	if ord.OrderStatus == models.Cancelled {
-		log.Println("Order is already cancelled")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  "failed",
 			"message": "Order is already cancelled",
@@ -717,12 +718,9 @@ func UpdateOrderstatus(c *gin.Context) {
 	case models.Shipped:
 		updatedStatus = models.Delivered
 	}
-	log.Println(updatedStatus)
-	// Check if there is a status transition to be made
 	if updatedStatus != "" {
 		if err := tx.Model(&models.OrderItem{}).Where("order_id = ?", orderID).Update("order_status", updatedStatus).Error; err != nil {
 			tx.Rollback()
-			log.Println("Failed to update order item status:", err)
 			c.JSON(http.StatusNotModified, gin.H{
 				"status":  "failed",
 				"message": "Unable to update order item status",
@@ -735,7 +733,6 @@ func UpdateOrderstatus(c *gin.Context) {
 		}
 		if err := tx.Save(&ord).Error; err != nil {
 			tx.Rollback()
-			log.Println("Failed to save updated order:", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "failed",
 				"message": "Failed to save updated order",
@@ -743,7 +740,6 @@ func UpdateOrderstatus(c *gin.Context) {
 			return
 		}
 		if err := tx.Commit().Error; err != nil {
-			log.Println("Transaction commit failed:", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "failed",
 				"message": "Transaction failed",
@@ -780,7 +776,7 @@ func ReturnOrder(c *gin.Context){
 		})
 		return
 	}
-	userid, ok := utils.GetUserIDByEmail(emailval)
+	userid, _ := utils.GetUserIDByEmail(emailval)
 	ordID := c.Query("order_id")
 	productid:=c.Query("productid")
 	parsedID, _ := strconv.ParseUint(ordID, 10, 32)

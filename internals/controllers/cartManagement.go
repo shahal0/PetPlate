@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"errors"
-	"log"
 	"net/http"
 	"petplate/internals/database"
 	"petplate/internals/models"
@@ -63,61 +62,44 @@ func AddCart(c *gin.Context) {
 
 	// Check if product is already in cart
 	var existingCart models.Cart
-	err := database.DB.Where("user_id = ? AND product_id = ?", userid, req.ProductID).First(&existingCart).Error
-
-	if err == nil {
-		
-		newQuantity := existingCart.Quantity + req.Quantity
-		if newQuantity > 10 {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"status":  "failed",
-				"message": "Maximum quantity allowed is 10",
-			})
-			return
-		}
+	database.DB.Where("user_id = ? AND product_id = ?", userid, req.ProductID).First(&existingCart)
+	if existingCart.ProductID==req.ProductID{
+		newQuantity:=existingCart.Quantity+req.Quantity
 		var product models.Product
-		if err := database.DB.Model(&models.Product{}).Where("product_id = ?", req.ProductID).First(&product).Error;err!=nil{
+		if err:=database.DB.Where("product_id=?",req.ProductID).First(&product).Error;err!=nil{
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "failed",
-				"message": "unable find the product",
-			})
-			return
+				"message": "Failed to retrieve product from database",
+				})
+				return
 		}
 		if newQuantity>product.MaxStock{
 			c.JSON(http.StatusBadRequest, gin.H{
 				"status":  "failed",
-				"message": "Not enough stock",
+				"message": "Quantity exceeds product stock",
 				})
-				return 
+				return
 		}
-
-		existingCart.Quantity = newQuantity
-	
-	
-		// Use Update instead of Save to ensure the record with the correct ID is updated
-		if err := database.DB.Model(&existingCart).Where("user_id = ? AND product_id = ?", userid, req.ProductID).Updates(map[string]interface{}{
-			"quantity": existingCart.Quantity,
-		}).Error; err != nil {
-			log.Println("error:", err)
+		if newQuantity>10{
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status":  "failed",
+				"message": "Quantity exceeds maximum allowed",
+				})
+				return
+		}
+		if err := database.DB.Model(&existingCart).Where("user_id=? and product_id=?", userid, req.ProductID).Update("quantity", newQuantity).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "failed",
-				"message": "Failed to update cart",
+				"message": err.Error(),
 			})
 			return
 		}
-	
-		c.JSON(http.StatusOK, gin.H{
-			"status":  "success",
-			"message": "Cart updated successfully",
+		c.JSON(http.StatusOK,gin.H{
+			"status": "success",
+			"message": "Product quantity updated successfully",
 		})
 		return
-	}else if !errors.Is(err, gorm.ErrRecordNotFound) {
-		// Handle errors other than "not found"
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "failed",
-			"message": "Failed to check existing cart",
-		})
-		return
+
 	}
 
 	// Product not in cart, create new cart entry
@@ -203,13 +185,12 @@ func ListCart(c *gin.Context){
 				"status":  "failed",
 				"message": "internal server error",
 			})
-			log.Printf("error %v", result.Error)
 			return
 		}
 		database.DB.Model(&models.Coupon{}).Where("code=?",couponcode).First(&coupon)
 		if couponcode==""{
 			message="no coupon applied"
-		}else if coupon.IsActive==false{
+		}else if !coupon.IsActive{
 			message="coupon is not active"
 		}else{
 			message="coupon applied"

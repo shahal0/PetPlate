@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	// "fmt"
 	"errors"
 	"net/http"
 	"petplate/internals/database"

@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"log"
 	"net/http"
 	"petplate/internals/database"
 	"petplate/internals/models"
@@ -258,10 +257,8 @@ func CategoryByProduct(c *gin.Context){
         return
     }
     categoryId := uint(parsedID)
-    log.Println("Parsed Category ID:", categoryId)
     var product []models.Product
     if err:=database.DB.Where("category_id=?",categoryId).Find(&product).Error;err!=nil{
-        log.Println("Error querying products:", err)
         c.JSON(http.StatusNotFound,gin.H{
             "status":"failed",
             "message":"Error occurred while retrieving products",
@@ -346,7 +343,7 @@ func ProductRating(c *gin.Context){
             flag=true
         }
     }
-    if flag==false{
+    if !flag{
         c.JSON(http.StatusBadRequest, gin.H{
             "status":  "failed",
             "message": "product not found",

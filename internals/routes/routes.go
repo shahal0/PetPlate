@@ -132,5 +132,10 @@ func InitRoutes(router *gin.Engine) {
 		WhislistGroup.GET("/list", controllers.SowWhislist)
 		WhislistGroup.PATCH("/addtocart", controllers.AddToCart)
 	}
-
+	BookingGroup := router.Group("/user/bookings")
+	BookingGroup.Use(middlewares.AuthMiddleware("user"))
+	{
+		BookingGroup.POST("/book", controllers.Booking)
+		BookingGroup.GET("/list", controllers.UserGetBooking)
+	}
 }

@@ -193,6 +193,22 @@ func DeleteService(c *gin.Context){
 	})
 }
 func GetServices(c *gin.Context){
+	email, exist := c.Get("email")
+	if !exist {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"status":  "failed",
+			"message": "Unauthorized or invalid token",
+		})
+		return
+	}
+	_, ok := email.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "failed",
+			"message": "Failed to retrieve email from token",
+		})
+		return
+	}
 	var service []models.Service
 	if err:=database.DB.Find(&service).Error;err!=nil{
 		c.JSON(http.StatusInternalServerError,gin.H{

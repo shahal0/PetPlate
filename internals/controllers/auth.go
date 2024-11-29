@@ -6,8 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-
-	//"log"
 	"math/rand"
 	"net/http"
 	"net/smtp"
@@ -245,7 +243,6 @@ func SendOtp(c *gin.Context, to string, otpexpiry uint64) error {
 		timeLeft := otpexpiry - uint64(now)
 		return errors.New(fmt.Sprintf("OTP is still valid. Please wait %v seconds before sending another request.", int(timeLeft)))
 	}
-	fmt.Println("hi")
 
 	// Set OTP expiry time (5 minutes from now)
 	expiryTime := now + 5*60 // 5 minutes in seconds
@@ -253,9 +250,7 @@ func SendOtp(c *gin.Context, to string, otpexpiry uint64) error {
 	// Email configuration
 	from := "petplate0@gmail.com"
 	appPassword := "yjefvtzmglurwcid" //os.Getenv("SMTPAPP") // Fetch SMTP app password from environment variable
-	fmt.Println(appPassword)
 	if appPassword == "" {
-		fmt.Println("es")
 		return errors.New("SMTP app password not set")
 	}
 
@@ -263,12 +258,10 @@ func SendOtp(c *gin.Context, to string, otpexpiry uint64) error {
 	auth := smtp.PlainAuth("", from, appPassword, "smtp.gmail.com")
 	otpStr := strconv.Itoa(otp) // Convert OTP to string
 	message := []byte("Subject: Your OTP Code\n\nYour OTP is: " + otpStr)
-	fmt.Println("23")
 
 	// Send email
 	err := smtp.SendMail("smtp.gmail.com:587", auth, from, []string{to}, message)
 	if err != nil {
-		fmt.Println("Failed to send email:", err) // Print the error message for debugging
 		return errors.New("failed to send email: " + err.Error())
 	}
 
@@ -443,10 +436,7 @@ func HandleGoogleLogin(c *gin.Context) {
 	c.Next()
 }
 func HandleGoogleCallback(c *gin.Context) {
-    // Get the authorization code from Google
-    fmt.Println("Starting to handle callback")
     code := c.Query("code")
-    fmt.Println("Authorization Code:", code)
 
     // Check if code exists in the query parameters
     if code == "" {

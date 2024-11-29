@@ -22,5 +22,5 @@ const (
 	PaymentFailed				="payment failed"
 	PointThree					=0.3
 	Return   					="return"
-
+	Layout                     ="2006-01-02"
 )

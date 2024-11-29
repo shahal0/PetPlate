@@ -3,7 +3,6 @@ package controllers
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"math"
 	"net/http"
 	"os"
@@ -79,7 +78,7 @@ func SalesReport(c *gin.Context) {
 func TotalOrders(fromDate string, toDate string, paymentStatus string) (models.OrderCount, models.AmountInformation, error) {
 	var orders []models.Order
 
-	// Parse and adjust date range
+	// Parse the input dates
 	startDate, err := time.Parse("2006-01-02", fromDate)
 	if err != nil {
 		return models.OrderCount{}, models.AmountInformation{}, fmt.Errorf("error parsing start date: %v", err)
@@ -89,11 +88,11 @@ func TotalOrders(fromDate string, toDate string, paymentStatus string) (models.O
 		return models.OrderCount{}, models.AmountInformation{}, fmt.Errorf("error parsing end date: %v", err)
 	}
 
-	// Adjust to full-day precision for the end date
+	// Adjust end date for full-day precision
 	startDate = startDate.UTC()
 	endDate = endDate.Add(24*time.Hour - time.Nanosecond).UTC()
 
-	// Query orders within the date range and payment status
+	// Fetch orders within the date range and payment status
 	if err := database.DB.
 		Where("order_date BETWEEN ? AND ? AND payment_status = ?", startDate, endDate, paymentStatus).
 		Find(&orders).Error; err != nil {
@@ -108,23 +107,25 @@ func TotalOrders(fromDate string, toDate string, paymentStatus string) (models.O
 		accountInfo.TotalProuctOfferDeduction += order.OfferTotal
 		accountInfo.TotalAmountAfterDeduction += order.FinalAmount
 	}
+
+	// If no orders exist, return early
 	if len(orders) == 0 {
 		return models.OrderCount{TotalOrder: 0}, accountInfo, nil
 	}
 
-	// Query order statuses and counts
+	// Fetch status counts for the orders
 	var statusCounts []struct {
 		OrderStatus string
 		Count       int64
 	}
 	if err := database.DB.Raw(`
 		SELECT order_status, COUNT(*) as count 
-		FROM "order_items" 
-		GROUP BY "order_status"
-	`).Scan(&statusCounts).Error; err != nil {
+		FROM orders 
+		WHERE order_date BETWEEN ? AND ? AND payment_status = ?
+		GROUP BY order_status
+	`, startDate, endDate, paymentStatus).Scan(&statusCounts).Error; err != nil {
 		return models.OrderCount{}, models.AmountInformation{}, fmt.Errorf("error counting order items by status: %v", err)
 	}
-	log.Println(statusCounts)
 
 	// Map status counts
 	orderStatusCounts := make(map[string]int64)
@@ -134,7 +135,7 @@ func TotalOrders(fromDate string, toDate string, paymentStatus string) (models.O
 		totalCount += sc.Count
 	}
 
-	// Safely access counts for each status
+	// Safely map and return the results
 	return models.OrderCount{
 		TotalOrder:     uint(totalCount),
 		TotalPending:   uint(orderStatusCounts[models.Pending]),
@@ -145,6 +146,7 @@ func TotalOrders(fromDate string, toDate string, paymentStatus string) (models.O
 		TotalReturned:  uint(orderStatusCounts[models.Return]),
 	}, accountInfo, nil
 }
+
 func DownloadSalesReportPDF(c *gin.Context) {
 	_, exist := c.Get("email")
 	if !exist {
@@ -193,7 +195,6 @@ func DownloadSalesReportPDF(c *gin.Context) {
 	pdfBytes, err := GenerateSalesReportPDF(orderCount, amountInfo, startDate, endDate, paymentStatus)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate PDF"})
-		log.Println(err)
 		return
 	}
 	c.Header("Content-Type", "application/pdf")
@@ -269,6 +270,7 @@ func GenerateSalesReportPDF(orderCount models.OrderCount, amountInfo models.Amou
     }
     pdf.Ln(10)
 
+
     // Prepare Chart Data
     chartData := []chart.Value{
         {Value: float64(orderCount.TotalPending), Label: "Pending"},
@@ -278,9 +280,6 @@ func GenerateSalesReportPDF(orderCount models.OrderCount, amountInfo models.Amou
         {Value: float64(orderCount.TotalCancelled), Label: "Cancelled"},
         {Value: float64(orderCount.TotalReturned), Label: "Returned"},
     }
-
-    // Debug chart data
-    log.Printf("Chart Data: %+v", chartData)
 
     // Validate Chart Data
     validData := false

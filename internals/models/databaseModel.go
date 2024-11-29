@@ -4,6 +4,7 @@ import (
 	//"time"
 	"time"
 
+	//"github.com/stripe/stripe-go/v78/paymentmethod"
 	"gorm.io/gorm"
 )
 
@@ -152,6 +153,17 @@ type UserWallet struct{
 	TransactionTime time.Time `json:"transaction_time" gorm:"column:transaction_time"`
 	CurrentBalance uint `json:"current_balance" gorm:"column:current_balance"`
 	Reason string `json:"reason" gorm:"column:reason"`
+}
+type Booking struct{
+	BookingID uint `gorm:"primaryKey;autoIncrement" json:"booking_id" `
+	ServiceID uint `json:"service_id" gorm:"column:service_id"`
+	TimeSlot string `json:"time_slot" gorm:"column:time_slot"`
+	BookingDate time.Time `json:"booking_date" gorm:"column:booking_date`
+	BookingStatus string `json:"booking_status" gorm:"column:booking_status"`
+	Amount float64 `json:"amount_paid" gorm:"column:amount_paid"`
+	UserId uint `json:"user_id" gorm:"column:user_id"`
+	PaymentMethod string `json:"payment_method" gorm:"column:payment_method"`
+	PaymentStatus string `json:"payment_status" gorm:"column:payment_status"`
 }
 
 

@@ -2,16 +2,12 @@ package controllers
 
 import (
 	"fmt"
-	"log"
-
-	//"net/http"
 	"petplate/internals/database"
 	"petplate/internals/models"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jung-kurt/gofpdf/v2"
-	// "google.golang.org/protobuf/internal/order"
 )
 
 func Invoice(c *gin.Context) {
@@ -100,7 +96,6 @@ func Invoice(c *gin.Context) {
 	for _, item := range items {
 		var product models.Product
 		if err := database.DB.Where("product_id = ?", item.ProductID).First(&product).Error; err != nil {
-			log.Println(err)
 			continue
 		}
 		total := float64(item.Quantity) * product.Price

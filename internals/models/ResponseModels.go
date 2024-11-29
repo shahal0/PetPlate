@@ -33,18 +33,20 @@ type CartProduct struct {
 	ImageURL    string  `gorm:"column:image_url" validate:"required" json:"image_url"`
 }
 type OrderResponse struct {
-	OrderID   uint      `json:"order_id"`
-	OrderDate time.Time `json:"order_date"`
-	RawAmount  float64 `json:"raw_amount"`
-	OfferTotal float64 `json:"total" gorm:"column:total"`
-	DiscountPrice  float64 `json:"discount_price"`
-	FinalAmount   float64 `json:"final_amount"`
-	ShippingAddress ShippingAddress  `gorm:"type:json" json:"shipping_address"`
-	OrderStatus  string `json:"order_status"`
-	PaymentStatus  string `json:"payment_status"`
-	PaymentMethod   string `json:"payment_method"`
-	Items         []OrderItemResponse `json:"items"`
+	OrderID         uint                `json:"order_id"`
+	OrderDate       time.Time           `json:"order_date"`
+	SubtotalAmount  float64             `json:"subtotal_amount"`  // RawAmount
+	OfferTotal      float64             `json:"offer_total"` 
+	DiscountAmount  float64             `json:"discount_amount"`  // DiscountPrice     // Total after discounts, renamed for consistency
+	ShippingCharge  float64             `json:"shipping_charge"`  // DeliveryCharge
+	TotalPayable    float64             `json:"total_payable"`    // FinalAmount
+	ShippingAddress ShippingAddress     `gorm:"type:json" json:"shipping_address"`
+	OrderStatus     string              `json:"order_status"`
+	PaymentStatus   string              `json:"payment_status"`
+	PaymentMethod   string              `json:"payment_method"`
+	Items           []OrderItemResponse `json:"items"`
 }
+
 type  OrderItemResponse struct {
 	OrderID   uint `json:"order_id"`
 	ProductId uint  `json:"product_id"`
@@ -130,4 +132,15 @@ type BestSellingCategory struct {
     CategoryID   uint   `json:"category_id"`
     CategoryName string `json:"category_name"`
     TotalSold    int    `json:"total_sold"`
+}
+type BookingResponse struct {
+	UserID uint `json:"user_id"`
+	BookingId uint `json:"booking_id"`
+	TimeSlot string `json:"time_slot" `
+	BookingDate time.Time `json:"booking_date" `
+	BookingStatus string `json:"booking_status" `
+	Amount float64 `json:"amount_paid"`
+	PaymentMethod string `json:"payment_method" `
+	PaymentStatus string `json:"payment_status" `
+	Service string `json:"service" `
 }

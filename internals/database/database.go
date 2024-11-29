@@ -46,6 +46,7 @@ func AutoMigrate() {
 		&models.Whishlist{},
 		&models.Payment{},
 		&models.UserWallet{},
+		&models.Booking{},
 
 	)
 	if err != nil {

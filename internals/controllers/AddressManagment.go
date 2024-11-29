@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"log"
 	"net/http"
 	"petplate/internals/database"
 	"petplate/internals/models"
@@ -142,7 +141,6 @@ func EditAddress(c *gin.Context) {
 
 	validate := validator.New()
 	if err := validate.Struct(&req); err != nil {
-		log.Println("error",err)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  "failed",
 			"message": "invalid input",
@@ -208,7 +206,6 @@ func DeleteAddress(c *gin.Context){
         return
     }
 	if err := database.DB.Where("address_id=?",addressId).Delete(&address).Error;err!=nil{ 
-		log.Println("error",err)
         c.JSON(http.StatusInternalServerError, gin.H{
             "status":  "failed",
             "message": "could not delete address",

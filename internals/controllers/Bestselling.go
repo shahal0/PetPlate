@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"fmt"
 	"net/http"
 	"petplate/internals/database"
 	"petplate/internals/models"
@@ -43,7 +42,6 @@ func BestSellingProduct(c *gin.Context) {
 	total_sold DESC
 	LIMIT 10;
 	`).Scan(&bestProduct)
-	fmt.Printf("Best-Selling Product: %+v\n", bestProduct)
 	c.JSON(http.StatusOK,gin.H{
 		"status":  "success",
 		"BestSelling Product":bestProduct,
@@ -76,7 +74,6 @@ func BestsellingCategory(c *gin.Context) {
 	total_sold DESC
 	LIMIT 10;
 	`).Scan(&bestCategory)
-	fmt.Printf("Best-Selling Category: %+v\n", bestCategory)
 	c.JSON(http.StatusOK,gin.H{
 		"status":  "success",
 		"BestSelling category":bestCategory,

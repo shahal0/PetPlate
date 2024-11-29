@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"log"
 	"net/http"
 	"petplate/internals/database"
 	"petplate/internals/models"
@@ -21,9 +20,6 @@ func UserIDfromEmail(Email string) (ID uint, ok bool) {
 }
 
 func GetUserList(c *gin.Context) {
-	// 1. Verify the admin's authentication
-	log.Println("10")
-
 	adminid, exist := c.Get("adminID")
 	if !exist {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -45,7 +41,6 @@ func GetUserList(c *gin.Context) {
 	var users []models.UserResponse
 	tx := database.DB.Model(&models.User{}).Select("id, name, email, phone_number, picture, referral_code, login_method, blocked").Find(&users)
 	if tx.Error != nil {
-		log.Println("Database query error:", tx.Error)
 		c.JSON(http.StatusNotFound, gin.H{
 			"status":  "failed",
 			"message": "failed to retrieve data from the database, or the data doesn't exist",
@@ -79,7 +74,6 @@ func BlockUser(c *gin.Context) {
 	}
 	// Get user ID from URL parameter
 	userID := c.Query("id")
-	log.Println("user id", userID)
 
 	// Find the user by ID
 	var user models.User

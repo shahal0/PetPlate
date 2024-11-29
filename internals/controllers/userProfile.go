@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"log"
 	"net/http"
 	"petplate/internals/database"
 	"petplate/internals/models"
@@ -32,7 +31,6 @@ func GetUserProfile(c *gin.Context) {
 	// Check user info and save it into the struct
 	var UserProfile models.User
 	if err := database.DB.Where("email = ?", emailStr).First(&UserProfile).Error; err != nil {
-		log.Printf("User not found: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "failed",
 			"message": "User not found",
@@ -78,7 +76,6 @@ func EditProfile(c *gin.Context) {
 
 	var req models.UserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		log.Printf("Bind JSON error: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  "failed",
 			"message": "Invalid input",
@@ -97,7 +94,6 @@ func EditProfile(c *gin.Context) {
 
 	var user models.User
 	if err := database.DB.Where("email = ?", emailStr).First(&user).Error; err != nil {
-		log.Printf("User not found: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "failed",
 			"message": "User not found",
@@ -105,12 +101,8 @@ func EditProfile(c *gin.Context) {
 		return
 	}
 
-	// Log the request data for debugging
-	log.Printf("Updating user %v with data: %+v", emailStr, req)
-
 	// Perform the update
 	if err := database.DB.Model(&user).Updates(req).Error; err != nil {
-		log.Printf("Update error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "failed",
 			"message": "Could not edit profile",
@@ -147,7 +139,6 @@ func ChangePassword(c *gin.Context) {
     // Find the user by email
     var user models.User
     if err := database.DB.Where("email = ?", emailStr).First(&user).Error; err != nil {
-        log.Printf("User not found: %v", err)
         c.JSON(http.StatusInternalServerError, gin.H{
             "status":  "failed",
             "message": "User not found",
@@ -158,7 +149,6 @@ func ChangePassword(c *gin.Context) {
     // Bind the request data
     var req models.PasswordChange
     if err := c.ShouldBindJSON(&req); err != nil {
-        log.Printf("Bind JSON error: %v", err)
         c.JSON(http.StatusBadRequest, gin.H{
             "status":  "failed",
             "message": "Invalid input",
@@ -189,7 +179,6 @@ func ChangePassword(c *gin.Context) {
     // Hash the new password
     hashedNewPassword, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
     if err != nil {
-        log.Printf("Failed to hash new password: %v", err)
         c.JSON(http.StatusInternalServerError, gin.H{
             "status":  "failed",
             "message": "Failed to change password, please try again later",
@@ -200,7 +189,6 @@ func ChangePassword(c *gin.Context) {
     // Update the user's password in the database
     user.HashedPassword = string(hashedNewPassword)
     if err := database.DB.Save(&user).Error; err != nil {
-        log.Printf("Failed to update password: %v", err)
         c.JSON(http.StatusInternalServerError, gin.H{
             "status":  "failed",
             "message": "Failed to change password, please try again later",
@@ -226,11 +214,10 @@ func WalletHistory(c *gin.Context){
 
     _, ok := email.(string)
 	if !ok {
-		log.Print("errror   ")
+		
 	}
 	var wh []models.UserWallet
 	if err:=database.DB.Model(&models.UserWallet{}).Find(&wh).Error;err!=nil{
-		log.Printf("Failed to fetch wallet history: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":"failed",
 			"message":"failed to fetch wallet informations",

@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"petplate/internals/database"
 	"petplate/internals/models"
-	//"petplate/utils"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
