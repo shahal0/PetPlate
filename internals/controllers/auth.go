@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/smtp"
+	"os"
 	"strings"
 
 	"petplate/utils"
@@ -20,6 +21,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
+	"github.com/joho/godotenv"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -29,16 +31,25 @@ import (
 	//"gorm.io/gorm/utils"
 )
 var (
+    googleOauthConfig *oauth2.Config
+    oauthStateString  string
+)
+func init() {
+    // Load environment variables from .env file
+     godotenv.Load()
+   
+
+    // Initialize Google OAuth configuration
     googleOauthConfig = &oauth2.Config{
-        RedirectURL:  "http://localhost:8080/auth/callback", // Replace with your redirect URL
-        ClientID:     "1081304852347-0qtbfi9giv5f9tg6ckjrb8rul67mh8pl.apps.googleusercontent.com",               // Replace with your client ID
-        ClientSecret: "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",           // Replace with your client secret
+        RedirectURL:  os.Getenv("GOOGLE_REDIRECT_URL"),
+        ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
+        ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
         Scopes:       []string{"https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/userinfo.email"},
         Endpoint:     google.Endpoint,
     }
-    oauthStateString = "oauthstring" // This should be randomly generated for security
-)
 
+    oauthStateString = os.Getenv("OAUTH_STATE_STRING")
+}
 func SignupUser(c *gin.Context) {
     var signupRequest models.SignupRequest
     if err := c.BindJSON(&signupRequest); err != nil {
