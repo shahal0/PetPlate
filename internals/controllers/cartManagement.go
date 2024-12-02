@@ -173,7 +173,7 @@ func ListCart(c *gin.Context){
 		if err:=database.DB.Where("product_id=?",cartitem.ProductID).First(&product).Error;err!=nil{
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "failed",
-				"message": "internal server error",
+				"message": "product not found",
 			})
 			return
 		}
