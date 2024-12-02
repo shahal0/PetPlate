@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"errors"
 	"net/http"
 	"petplate/internals/database"
 	"petplate/internals/models"
@@ -10,7 +9,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
-	"gorm.io/gorm"
 )
 func AddCart(c *gin.Context) {
 	// Retrieve email from the context
@@ -158,7 +156,7 @@ func ListCart(c *gin.Context){
 		return
 	}
 	var cart []models.Cart
-	if err:=database.DB.Model(models.Cart{}).Where("user_id=?",userid).Find(&cart).Error;err!=nil{
+	if err:=database.DB.Where("user_id=?",userid).Find(&cart).Error;err!=nil{
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "failed",
 			"message":"cart not found",
@@ -172,15 +170,7 @@ func ListCart(c *gin.Context){
 	var responseCarts[]models.CartProduct
 	for _,cartitem:=range cart{
 		var product models.Product
-		result := database.DB.Model(&models.Product{}).Where("product_id=?", cartitem.ProductID).First(&product)
-		if result.Error != nil {
-			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-				c.JSON(http.StatusNotFound, gin.H{
-					"status":  "failed",
-					"message": "product not found",
-				})
-				return
-			}
+		if err:=database.DB.Where("product_id=?",cartitem.ProductID).First(&product).Error;err!=nil{
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "failed",
 				"message": "internal server error",
