@@ -172,7 +172,7 @@ func ListCart(c *gin.Context){
 	var responseCarts[]models.CartProduct
 	for _,cartitem:=range cart{
 		var product models.Product
-		result := database.DB.Model(models.Product{}).Where("product_id=?", cartitem.ProductID).First(&product)
+		result := database.DB.Model(&models.Product{}).Where("product_id=?", cartitem.ProductID).First(&product)
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 				c.JSON(http.StatusNotFound, gin.H{
