@@ -71,7 +71,7 @@
             let orderID = "{{ .orderID }}"; 
             console.log("Order ID:", orderID);
     
-            fetch(`http://localhost:8080/create-order?orderid=${orderID}`, {
+            fetch(`https://petplate.shahal.in.net/create-order?orderid=${orderID}`, {
              method: 'POST',
             })
             .then(response => response.json())
@@ -89,7 +89,7 @@
                     "handler": function (response) {
                         console.log("Payment succeeded:", response);
                         paymentFailureHandled = false;
-                        fetch(`http://localhost:8080/verify-payment/${orderID}`, {
+                        fetch(`https://petplate.shahal.in.net/verify-payment/${orderID}`, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json'
@@ -133,7 +133,7 @@
             paymentFailureHandled = true;
     
             let orderID = "{{ .orderID }}";  // Ensure this is populated correctly on the server side
-            fetch(`http://localhost:8080/payment-failed/${orderID}`, {
+            fetch(`https://petplate.shahal.in.net/payment-failed/${orderID}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
