@@ -120,7 +120,7 @@ func EditProduct(c *gin.Context){
 		return
 	}
 	var product models.Product
-	if err := database.DB.Where("id=?",productID).First(&product).Error;err!=nil{  // <- Fixed error checking
+	if err := database.DB.Where("product_id=?",productID).First(&product).Error;err!=nil{  
         c.JSON(http.StatusInternalServerError, gin.H{
             "status":  "failed",
             "message": "could not edit product",
