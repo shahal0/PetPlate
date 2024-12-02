@@ -199,14 +199,14 @@ func DeleteProducts(c *gin.Context){
 		return
 	}
 	var product models.Product
-	if err := database.DB.Where("id = ?", productID).First(&product).Error; err != nil {
+	if err := database.DB.Where("product_id = ?", productID).First(&product).Error; err != nil {
         c.JSON(http.StatusNotFound, gin.H{
             "status":  "failed",
             "message": "product not found",
         })
         return
     }
-	if err := database.DB.Where("id=?",productID).Delete(&product).Error;err!=nil{  // <- Fixed error checking
+	if err := database.DB.Where("product_id=?",productID).Delete(&product).Error;err!=nil{  // <- Fixed error checking
         c.JSON(http.StatusInternalServerError, gin.H{
             "status":  "failed",
             "message": "could not delete product",
